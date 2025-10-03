@@ -1,0 +1,17 @@
+/* Shared dashboard styling */
+.sidebar { min-height: 100vh; }
+
+/* Role-based sidebar colors */
+body.role-collector .sidebar { background-color: #ffc107 !important; color: #212529; }
+body.role-collector .sidebar .nav-link { color: #212529 !important; }
+body.role-collector .sidebar .nav-link.active,
+body.role-collector .sidebar .nav-link:hover { background-color: rgba(0,0,0,0.06); }
+
+body.role-authority .sidebar { background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
+body.role-admin .sidebar { background: linear-gradient(135deg, #0d6efd 0%, #0b5ed7 100%); }
+body.role-resident .sidebar { background: linear-gradient(135deg, #20c997 0%, #0ca678 100%); }
+
+/* Cards */
+.card { border: none; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.06); }
+.nav-link { border-radius: 10px; margin: 2px 0; transition: all 0.2s ease; }
+
