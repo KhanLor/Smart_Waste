@@ -18,36 +18,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $receiver_id = $_POST['receiver_id'] ?? null;
         $message = trim($_POST['message'] ?? '');
         
-        if (empty($message) || !$receiver_id) {
-            $error_message = 'Please enter a message and select a recipient.';
-        } else {
+        if ($receiver_id && !empty($message)) {
             try {
-                // Insert chat message
                 $stmt = $conn->prepare("
-                    INSERT INTO chat_messages (sender_id, receiver_id, message, message_type) 
-                    VALUES (?, ?, ?, 'text')
+                    INSERT INTO chat_messages (sender_id, receiver_id, message, is_read) 
+                    VALUES (?, ?, ?, 0)
                 ");
                 $stmt->bind_param("iis", $user_id, $receiver_id, $message);
                 
                 if ($stmt->execute()) {
-                    $success_message = 'Message sent successfully!';
-                    
-                    // Create notification for receiver
-                    $stmt = $conn->prepare("
-                        INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) 
-                        VALUES (?, ?, ?, 'info', 'chat', ?)
-                    ");
-                    $notification_title = 'New Message';
-                    $notification_message = 'You have a new message from a resident.';
-                    $message_id = $conn->insert_id;
-                    $stmt->bind_param("issi", $receiver_id, $notification_title, $notification_message, $message_id);
-                    $stmt->execute();
+                    $success_message = 'Message sent successfully.';
                 } else {
                     throw new Exception('Failed to send message.');
                 }
             } catch (Exception $e) {
                 $error_message = 'Error sending message: ' . $e->getMessage();
             }
+        } else {
+            $error_message = 'Please select a recipient and enter a message.';
+        }
+    } elseif ($_POST['action'] === 'clear_chat') {
+        $authority_id = (int)($_POST['authority_id'] ?? 0);
+        if ($authority_id > 0) {
+            try {
+                $stmt = $conn->prepare("
+                    DELETE FROM chat_messages
+                    WHERE (sender_id = ? AND receiver_id = ?)
+                       OR (sender_id = ? AND receiver_id = ?)
+                ");
+                $stmt->bind_param("iiii", $user_id, $authority_id, $authority_id, $user_id);
+                if ($stmt->execute()) {
+                    $success_message = 'Chat cleared successfully.';
+                } else {
+                    throw new Exception('Failed to clear chat.');
+                }
+            } catch (Exception $e) {
+                $error_message = 'Error clearing chat: ' . $e->getMessage();
+            }
+        } else {
+            $error_message = 'Invalid authority selected.';
         }
     }
 }
@@ -139,79 +148,88 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
             transform: translateX(5px);
         }
         .chat-container {
-            height: 500px;
+            height: 70vh;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-messages {
+            flex: 1;
             overflow-y: auto;
+            padding: 20px;
             background: #f8f9fa;
-            border-radius: 10px;
-            padding: 15px;
         }
         .message {
             margin-bottom: 15px;
-            max-width: 80%;
+            display: flex;
+            align-items: flex-end;
         }
         .message.sent {
-            margin-left: auto;
+            justify-content: flex-end;
         }
         .message.received {
-            margin-right: auto;
+            justify-content: flex-start;
         }
         .message-content {
+            max-width: 70%;
             padding: 10px 15px;
             border-radius: 18px;
-            word-wrap: break-word;
+            position: relative;
         }
         .message.sent .message-content {
-            background: #007bff;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
+            border-bottom-right-radius: 5px;
         }
         .message.received .message-content {
             background: white;
-            border: 1px solid #dee2e6;
+            color: #333;
+            border: 1px solid #e9ecef;
+            border-bottom-left-radius: 5px;
         }
         .message-time {
             font-size: 0.75rem;
             color: #6c757d;
             margin-top: 5px;
-            text-align: center;
+        }
+        .message.sent .message-time {
+            text-align: right;
         }
         .authority-item {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
             cursor: pointer;
-            transition: all 0.3s;
-            border-radius: 10px;
+            transition: background-color 0.2s;
         }
         .authority-item:hover {
             background-color: #f8f9fa;
-            transform: translateX(5px);
         }
         .authority-item.active {
             background-color: #e3f2fd;
-            border-left: 4px solid #2196f3;
+            border-left: 4px solid #28a745;
         }
         .unread-badge {
             background: #dc3545;
             color: white;
             border-radius: 50%;
-            padding: 2px 6px;
-            font-size: 10px;
-            margin-left: auto;
-        }
-        .chat-input {
-            border-radius: 20px;
-            border: 2px solid #e9ecef;
-            transition: border-color 0.3s;
-        }
-        .chat-input:focus {
-            border-color: #28a745;
-            box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.25);
-        }
-        .btn-send {
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            padding: 0;
+            width: 20px;
+            height: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .chat-input {
+            border-top: 1px solid #e9ecef;
+            padding: 20px;
+            background: white;
+        }
+        .no-chat-selected {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #6c757d;
         }
     </style>
 </head>
@@ -269,8 +287,13 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
                             <p class="text-muted mb-0">Get help from waste management authorities</p>
                         </div>
                         <div class="text-end">
-                            <div class="h4 text-success mb-0"><?php echo $user['eco_points']; ?></div>
-                            <small class="text-muted">Eco Points</small>
+                            <?php if ($unread_count > 0): ?>
+                                <div class="h4 text-danger mb-0"><?php echo $unread_count; ?></div>
+                                <small class="text-muted">Unread Messages</small>
+                            <?php else: ?>
+                                <div class="h4 text-success mb-0">0</div>
+                                <small class="text-muted">Unread Messages</small>
+                            <?php endif; ?>
                         </div>
                     </div>
 
@@ -291,20 +314,20 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
 
                     <div class="row">
                         <!-- Authorities List -->
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-4">
                             <div class="card">
                                 <div class="card-header bg-light">
-                                    <h6 class="mb-0"><i class="fas fa-users me-2"></i>Available Authorities</h6>
+                                    <h6 class="mb-0"><i class="fas fa-users me-2"></i>Authorities</h6>
                                 </div>
                                 <div class="card-body p-0">
                                     <?php if ($authorities->num_rows > 0): ?>
                                         <?php while ($authority = $authorities->fetch_assoc()): ?>
-                                            <div class="authority-item p-3 <?php echo ($selected_authority == $authority['id']) ? 'active' : ''; ?>" 
+                                            <div class="authority-item <?php echo ($selected_authority == $authority['id']) ? 'active' : ''; ?>" 
                                                  onclick="selectAuthority(<?php echo $authority['id']; ?>)">
                                                 <div class="d-flex align-items-center">
                                                     <div class="flex-grow-1">
                                                         <h6 class="mb-1"><?php echo e($authority['first_name'] . ' ' . $authority['last_name']); ?></h6>
-                                                        <small class="text-muted"><?php echo ucfirst($authority['role']); ?></small>
+                                                        <small class="text-muted">Authority</small>
                                                     </div>
                                                     <i class="fas fa-chevron-right text-muted"></i>
                                                 </div>
@@ -319,89 +342,80 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
 
                         <!-- Chat Area -->
                         <div class="col-md-8">
-                            <?php if ($selected_authority_data): ?>
-                                <!-- Chat Header -->
-                                <div class="card mb-3">
-                                    <div class="card-header bg-primary text-white">
-                                        <h6 class="mb-0">
-                                            <i class="fas fa-comments me-2"></i>
-                                            Chat with <?php echo e($selected_authority_data['first_name'] . ' ' . $selected_authority_data['last_name']); ?>
-                                        </h6>
+                            <div class="card chat-container">
+                                <?php if ($selected_authority_data): ?>
+                                    <!-- Chat Header -->
+                                    <div class="card-header bg-light">
+                                        <div class="d-flex align-items-center">
+                                            <div class="flex-grow-1">
+                                                <h6 class="mb-0">
+                                                    <i class="fas fa-user me-2"></i>
+                                                    <?php echo e($selected_authority_data['first_name'] . ' ' . $selected_authority_data['last_name']); ?>
+                                                </h6>
+                                                <small class="text-muted">Authority</small>
+                                            </div>
+                                            <div class="dropdown">
+                                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                    <i class="fas fa-ellipsis-v"></i>
+                                                </button>
+                                                <ul class="dropdown-menu">
+                                                    <li><a class="dropdown-item" href="#" onclick="clearChat()">
+                                                        <i class="fas fa-trash me-2"></i>Clear Chat
+                                                    </a></li>
+                                                </ul>
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
 
-                                <!-- Chat Messages -->
-                                <div class="card mb-3">
-                                    <div class="chat-container" id="chatContainer">
+                                    <!-- Chat Messages -->
+                                    <div class="chat-messages" id="chatMessages">
                                         <?php if ($chat_messages && $chat_messages->num_rows > 0): ?>
-                                            <?php while ($msg = $chat_messages->fetch_assoc()): ?>
-                                                <div class="message <?php echo ($msg['sender_id'] == $user_id) ? 'sent' : 'received'; ?>">
+                                            <?php while ($message = $chat_messages->fetch_assoc()): ?>
+                                                <div class="message <?php echo $message['sender_id'] == $user_id ? 'sent' : 'received'; ?>">
                                                     <div class="message-content">
-                                                        <?php echo e($msg['message']); ?>
-                                                    </div>
-                                                    <div class="message-time">
-                                                        <?php echo format_ph_date($msg['created_at'], 'g:i A'); ?>
+                                                        <div><?php echo e($message['message']); ?></div>
+                                                        <div class="message-time">
+                                                            <?php echo format_ph_date($message['created_at']); ?>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             <?php endwhile; ?>
                                         <?php else: ?>
-                                            <div class="text-center text-muted mt-4">
+                                            <div class="text-center text-muted">
                                                 <i class="fas fa-comments fa-3x mb-3"></i>
-                                                <p>No messages yet. Start the conversation!</p>
+                                                <p>No messages yet. Start a conversation!</p>
                                             </div>
                                         <?php endif; ?>
                                     </div>
-                                </div>
 
-                                <!-- Message Input -->
-                                <div class="card">
-                                    <div class="card-body">
-                                        <form method="POST" id="messageForm">
+                                    <!-- Chat Input -->
+                                    <div class="chat-input">
+                                        <form method="POST" id="chatForm">
                                             <input type="hidden" name="action" value="send_message">
-                                            <input type="hidden" name="receiver_id" value="<?php echo $selected_authority_data['id']; ?>">
+                                            <input type="hidden" name="receiver_id" value="<?php echo $selected_authority; ?>">
                                             <div class="input-group">
-                                                <input type="text" class="form-control chat-input" name="message" 
-                                                       placeholder="Type your message..." required>
-                                                <button type="submit" class="btn btn-primary btn-send">
+                                                <input type="text" class="form-control" name="message" placeholder="Type your message..." required>
+                                                <button class="btn btn-primary" type="submit">
                                                     <i class="fas fa-paper-plane"></i>
                                                 </button>
                                             </div>
                                         </form>
+                                        <form method="POST" id="clearChatForm" class="d-none">
+                                            <input type="hidden" name="action" value="clear_chat">
+                                            <input type="hidden" name="authority_id" value="<?php echo (int)$selected_authority; ?>">
+                                        </form>
                                     </div>
-                                </div>
-                            <?php else: ?>
-                                <!-- Welcome Message -->
-                                <div class="card">
-                                    <div class="card-body text-center py-5">
-                                        <i class="fas fa-comments fa-4x text-muted mb-4"></i>
-                                        <h4>Welcome to Chat Support</h4>
-                                        <p class="text-muted">Select an authority from the list to start chatting and get help with your waste management concerns.</p>
-                                        <div class="row mt-4">
-                                            <div class="col-md-4">
-                                                <div class="text-center">
-                                                    <i class="fas fa-question-circle fa-2x text-primary mb-2"></i>
-                                                    <h6>Ask Questions</h6>
-                                                    <small class="text-muted">Get clarification on waste collection schedules</small>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="text-center">
-                                                    <i class="fas fa-exclamation-triangle fa-2x text-warning mb-2"></i>
-                                                    <h6>Report Issues</h6>
-                                                    <small class="text-muted">Discuss urgent waste management problems</small>
-                                                </div>
-                                            </div>
-                                            <div class="col-md-4">
-                                                <div class="text-center">
-                                                    <i class="fas fa-lightbulb fa-2x text-success mb-2"></i>
-                                                    <h6>Get Advice</h6>
-                                                    <small class="text-muted">Receive guidance on proper waste disposal</small>
-                                                </div>
-                                            </div>
+                                <?php else: ?>
+                                    <!-- No Chat Selected -->
+                                    <div class="no-chat-selected">
+                                        <div class="text-center">
+                                            <i class="fas fa-comments fa-4x text-muted mb-4"></i>
+                                            <h4>Select an Authority</h4>
+                                            <p class="text-muted">Choose an authority from the list to start chatting</p>
                                         </div>
                                     </div>
-                                </div>
-                            <?php endif; ?>
+                                <?php endif; ?>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -412,30 +426,34 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function selectAuthority(authorityId) {
-            window.location.href = 'chat.php?authority=' + authorityId;
+            window.location.href = '?authority=' + authorityId;
+        }
+
+        function clearChat() {
+            if (confirm('Are you sure you want to clear this chat? This action cannot be undone.')) {
+                document.getElementById('clearChatForm')?.submit();
+            }
         }
 
         // Auto-scroll to bottom of chat
-        const chatContainer = document.getElementById('chatContainer');
-        if (chatContainer) {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        // Auto-refresh chat every 10 seconds
-        if (<?php echo $selected_authority ? 'true' : 'false'; ?>) {
-            setInterval(function() {
-                location.reload();
-            }, 10000);
-        }
-
-        // Form submission handling
-        document.getElementById('messageForm')?.addEventListener('submit', function(e) {
-            const messageInput = this.querySelector('input[name="message"]');
-            if (messageInput.value.trim() === '') {
-                e.preventDefault();
-                return false;
+        function scrollToBottom() {
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages) {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
             }
+        }
+
+        // Scroll to bottom when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            scrollToBottom();
         });
+
+        // Auto-refresh chat every 30 seconds
+        setInterval(function() {
+            if (<?php echo $selected_authority ? 'true' : 'false'; ?>) {
+                location.reload();
+            }
+        }, 30000);
     </script>
 </body>
 </html>
