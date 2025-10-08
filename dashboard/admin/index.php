@@ -64,6 +64,7 @@ $stmt = $conn->prepare("SELECT * FROM notifications WHERE user_id = ? AND is_rea
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $notifications = $stmt->get_result();
+$unread_count = $notifications ? $notifications->num_rows : 0;
 ?>
 
 <!DOCTYPE html>
@@ -173,12 +174,15 @@ $notifications = $stmt->get_result();
 						<a class="nav-link text-white" href="analytics.php">
 							<i class="fas fa-chart-line me-2"></i>Analytics
 						</a>
-						<a class="nav-link text-white" href="chat.php">
-							<i class="fas fa-comments me-2"></i>Chat Support
-							<?php if ($notifications->num_rows > 0): ?>
-								<span class="notification-badge"><?php echo $notifications->num_rows; ?></span>
-							<?php endif; ?>
-						</a>
+                        <a class="nav-link text-white position-relative" href="notifications.php">
+                            <i class="fas fa-bell me-2"></i>Notifications
+                            <?php if ($unread_count > 0): ?>
+                                <span class="notification-badge"><?php echo $unread_count; ?></span>
+                            <?php endif; ?>
+                        </a>
+                        <a class="nav-link text-white" href="chat.php">
+                            <i class="fas fa-comments me-2"></i>Chat Support
+                        </a>
 						<a class="nav-link text-white" href="settings.php">
 							<i class="fas fa-cog me-2"></i>Settings
 						</a>
@@ -411,7 +415,10 @@ $notifications = $stmt->get_result();
 											</small>
 											<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
 										</div>
-									<?php endwhile; ?>
+                                    <?php endwhile; ?>
+                                    <div class="text-center mt-3">
+                                        <a href="notifications.php" class="btn btn-outline-secondary btn-sm">View All Notifications</a>
+                                    </div>
 								</div>
 							</div>
 						</div>

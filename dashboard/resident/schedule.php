@@ -165,6 +165,9 @@ if ($schedules->num_rows > 0) {
                         <a class="nav-link text-white active" href="schedule.php">
                             <i class="fas fa-calendar me-2"></i>Collection Schedule
                         </a>
+                        <a class="nav-link text-white" href="collections.php">
+                            <i class="fas fa-history me-2"></i>Recent Collections
+                        </a>
                         <a class="nav-link text-white" href="points.php">
                             <i class="fas fa-leaf me-2"></i>Eco Points
                         </a>
@@ -350,6 +353,9 @@ if ($schedules->num_rows > 0) {
                                     <?php else: ?>
                                         <p class="text-muted text-center">No collection history available.</p>
                                     <?php endif; ?>
+                                    <div class="text-center mt-3">
+                                        <a href="collections.php" class="btn btn-outline-primary btn-sm">View All Collections</a>
+                                    </div>
                                 </div>
                             </div>
                         </div>

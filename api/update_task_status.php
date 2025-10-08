@@ -28,7 +28,7 @@ if (!is_array($data)) {
 $task_id = isset($data['id']) ? intval($data['id']) : (isset($data['task_id']) ? intval($data['task_id']) : 0);
 $new_status = isset($data['status']) ? trim($data['status']) : '';
 
-$valid_statuses = ['pending','in_progress','completed'];
+$valid_statuses = ['pending','in_progress','completed','missed'];
 if ($task_id <= 0 || !in_array($new_status, $valid_statuses, true)) {
     http_response_code(422);
     echo json_encode(['error' => 'Invalid task_id or status']);
@@ -52,10 +52,10 @@ try {
     $stmt->bind_param('si', $new_status, $task_id);
     $stmt->execute();
 
-    // Record history entry when completed
-    if ($new_status === 'completed') {
-        $stmt = $conn->prepare("INSERT INTO collection_history (collector_id, schedule_id, status, collection_date) VALUES (?, ?, 'completed', NOW())");
-        $stmt->bind_param('ii', $collector_id, $task_id);
+    // Record history entry when completed or missed
+    if ($new_status === 'completed' || $new_status === 'missed') {
+        $stmt = $conn->prepare("INSERT INTO collection_history (collector_id, schedule_id, status, collection_date) VALUES (?, ?, ?, NOW())");
+        $stmt->bind_param('iis', $collector_id, $task_id, $new_status);
         $stmt->execute();
     }
 

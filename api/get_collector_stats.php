@@ -38,7 +38,13 @@ try {
     $stmt->execute();
     $today_completed = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
 
-    $today_remaining = max(0, $today_assigned - $today_completed);
+    // Missed today from collection_history
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM collection_history WHERE collector_id = ? AND status = 'missed' AND collection_date BETWEEN ? AND ?");
+    $stmt->bind_param('iss', $collector_id, $today_start, $today_end);
+    $stmt->execute();
+    $today_missed = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
+
+    $today_remaining = max(0, $today_assigned - $today_completed - $today_missed);
 
     // 30-day totals
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM collection_history WHERE collector_id = ? AND collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)");
@@ -56,6 +62,7 @@ try {
         'today' => [
             'assigned' => $today_assigned,
             'completed' => $today_completed,
+            'missed' => $today_missed,
             'remaining' => $today_remaining,
         ],
         'last_30_days' => [

@@ -46,7 +46,7 @@ $full_name = $username;
                     </div>
                     
                     <div class="row">
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-3 mb-4">
                             <div class="card bg-primary text-white">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
@@ -59,7 +59,7 @@ $full_name = $username;
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-3 mb-4">
                             <div class="card bg-success text-white">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
@@ -72,7 +72,20 @@ $full_name = $username;
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-4">
+                        <div class="col-md-3 mb-4">
+                            <div class="card bg-danger text-white">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between">
+                                        <div>
+                                            <h4 id="stat-missed">0</h4>
+                                            <p>Missed</p>
+                                        </div>
+                                        <i class="fas fa-times-circle fa-2x"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-4">
                             <div class="card bg-warning text-white">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between">
@@ -131,6 +144,7 @@ async function loadData() {
         if (stats.success) {
             document.getElementById('stat-assigned').textContent = stats.today.assigned ?? 0;
             document.getElementById('stat-completed').textContent = stats.today.completed ?? 0;
+            document.getElementById('stat-missed').textContent = stats.today.missed ?? 0;
             document.getElementById('stat-remaining').textContent = stats.today.remaining ?? 0;
         }
 
@@ -189,15 +203,26 @@ async function loadData() {
                 completeBtn.dataset.status = 'completed';
                 completeBtn.textContent = 'Complete';
 
+                const missedBtn = document.createElement('button');
+                missedBtn.type = 'button';
+                missedBtn.className = 'btn btn-sm btn-danger task-action';
+                missedBtn.dataset.id = t.id;
+                missedBtn.dataset.status = 'missed';
+                missedBtn.textContent = 'Missed';
+
                 if ((t.status || '') === 'in_progress') {
                     right.appendChild(uploadBtn);
                     right.appendChild(completeBtn);
+                    right.appendChild(missedBtn);
                 } else if ((t.status || '') === 'completed') {
                     // no actions
+                } else if ((t.status || '') === 'missed') {
+                    // no actions for missed
                 } else {
                     right.appendChild(uploadBtn);
                     right.appendChild(startBtn);
                     right.appendChild(completeBtn);
+                    right.appendChild(missedBtn);
                 }
 
                 li.appendChild(left);
