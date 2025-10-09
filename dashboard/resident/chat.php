@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/../../config/config.php';
 require_login();
+require_once __DIR__ . '/../../lib/push_notifications.php';
 
 // Check if user is a resident
 if (($_SESSION['role'] ?? '') !== 'resident') {
@@ -28,6 +29,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 if ($stmt->execute()) {
                     $success_message = 'Message sent successfully.';
+                    // Send push notification to the receiver (authority)
+                    try {
+                        $push = new PushNotifications($conn);
+                        $push->notifyUser((int)$receiver_id, 'New chat message', 'You have a new message from a resident', [
+                            'kind' => 'chat',
+                            'from_user_id' => (int)$user_id
+                        ]);
+                    } catch (Exception $ex) {
+                        // Ignore push errors
+                    }
                 } else {
                     throw new Exception('Failed to send message.');
                 }
@@ -128,6 +139,10 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
     <title>Chat Support - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        window.__VAPID_PUBLIC_KEY__ = '<?php echo e(VAPID_PUBLIC_KEY); ?>';
+    </script>
+    <script src="../../assets/js/register_sw.js"></script>
     <style>
         .sidebar {
             min-height: 100vh;
@@ -233,7 +248,7 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
         }
     </style>
 </head>
-<body>
+<body class="role-resident">
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->

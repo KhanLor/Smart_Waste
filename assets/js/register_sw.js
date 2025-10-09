@@ -2,7 +2,7 @@
 
 // Register service worker
 async function registerServiceWorker() {
-    if (!'serviceWorker' in navigator) {
+    if (!("serviceWorker" in navigator)) {
         console.error('Service workers not supported');
         return;
     }
@@ -67,7 +67,7 @@ function urlBase64ToUint8Array(base64String) {
 
 // Initialize push notifications
 async function initPushNotifications() {
-    if (!'PushManager' in window) {
+    if (!("PushManager" in window)) {
         console.warn('Push notifications not supported');
         return;
     }
@@ -85,8 +85,8 @@ async function initPushNotifications() {
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', () => {
-    // Only for logged-in residents
-    if (document.body.classList.contains('role-resident')) {
+    // Enable for residents and authority users
+    if (document.body.classList.contains('role-resident') || document.body.classList.contains('role-authority')) {
         initPushNotifications();
     }
 });
