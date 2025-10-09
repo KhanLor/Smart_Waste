@@ -56,18 +56,7 @@ $user = $stmt->get_result()->fetch_assoc();
     <div class="container-fluid">
         <div class="row">
             <div class="col-md-2 sidebar text-dark p-0">
-                <div class="p-3">
-                    <h4><?php echo APP_NAME; ?></h4>
-                    <hr>
-                    <nav class="nav flex-column">
-                        <a class="nav-link text-dark" href="index.php"><i class="fas fa-truck me-2"></i>Dashboard</a>
-                        <a class="nav-link text-dark" href="routes.php"><i class="fas fa-route me-2"></i>My Routes</a>
-                        <a class="nav-link text-dark" href="collections.php"><i class="fas fa-tasks me-2"></i>Collections</a>
-                        <a class="nav-link text-dark" href="map.php"><i class="fas fa-map me-2"></i>Map View</a>
-                        <a class="nav-link text-dark active" href="profile.php"><i class="fas fa-user me-2"></i>Profile</a>
-                        <a class="nav-link text-dark" href="../../logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
-                    </nav>
-                </div>
+                <?php include __DIR__ . '/_sidebar.php'; ?>
             </div>
             <div class="col-md-10">
                 <div class="p-4">

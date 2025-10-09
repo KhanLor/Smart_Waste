@@ -150,10 +150,10 @@ try { $stmt = $conn->prepare("SELECT COUNT(*) as total FROM users WHERE role = '
 		.form-check-input:checked { background-color: #28a745; border-color: #28a745; }
 	</style>
 </head>
-<body>
+<body class="role-admin">
 	<div class="container-fluid">
 		<div class="row">
-			<div class="col-md-3 col-lg-2 sidebar text-white p-0"><div class="p-3"><h4 class="mb-4"><i class="fas fa-user-shield me-2"></i><?php echo APP_NAME; ?></h4><hr class="bg-white"><nav class="nav flex-column"><a class="nav-link text-white" href="index.php"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a><a class="nav-link text-white" href="reports.php"><i class="fas fa-exclamation-triangle me-2"></i>Waste Reports</a><a class="nav-link text-white" href="schedules.php"><i class="fas fa-calendar me-2"></i>Collection Schedules</a><a class="nav-link text-white" href="collectors.php"><i class="fas fa-users me-2"></i>Collectors</a><a class="nav-link text-white" href="residents.php"><i class="fas fa-home me-2"></i>Residents</a><a class="nav-link text-white" href="analytics.php"><i class="fas fa-chart-line me-2"></i>Analytics</a><a class="nav-link text-white active" href="settings.php"><i class="fas fa-cog me-2"></i>Settings</a><hr class="bg-white"><a class="nav-link text-white" href="../../logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a></nav></div></div>
+            <div class="col-md-3 col-lg-2 sidebar text-white p-0"><?php include __DIR__ . '/_sidebar.php'; ?></div>
 			<div class="col-md-9 col-lg-10"><div class="p-4">
 				<div class="d-flex justify-content-between align-items-center mb-4"><div><h2 class="mb-1">Settings</h2><p class="text-muted mb-0">Manage your account and system preferences</p></div><div class="text-end"><div class="h4 text-danger mb-0"><?php echo $reports_30_days; ?></div><small class="text-muted">Reports (30 days)</small></div></div>
 				<?php if ($success_message): ?><div class="alert alert-success alert-dismissible fade show" role="alert"><i class="fas fa-check-circle me-2"></i><?php echo e($success_message); ?><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div><?php endif; ?>

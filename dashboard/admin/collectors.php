@@ -196,29 +196,15 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
 		.stat-card.success { background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%); }
 		.stat-card.warning { background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%); }
 		.collector-avatar { width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem; }
-	</style>
+</style>
 </head>
-<body>
+<body class="role-admin">
 	<div class="container-fluid">
 		<div class="row">
-			<!-- Sidebar -->
-			<div class="col-md-3 col-lg-2 sidebar text-white p-0">
-				<div class="p-3">
-					<h4 class="mb-4"><i class="fas fa-user-shield me-2"></i><?php echo APP_NAME; ?></h4>
-					<hr class="bg-white">
-					<nav class="nav flex-column">
-						<a class="nav-link text-white" href="index.php"><i class="fas fa-tachometer-alt me-2"></i>Dashboard</a>
-						<a class="nav-link text-white" href="reports.php"><i class="fas fa-exclamation-triangle me-2"></i>Waste Reports</a>
-						<a class="nav-link text-white" href="schedules.php"><i class="fas fa-calendar me-2"></i>Collection Schedules</a>
-						<a class="nav-link text-white active" href="collectors.php"><i class="fas fa-users me-2"></i>Collectors</a>
-						<a class="nav-link text-white" href="residents.php"><i class="fas fa-home me-2"></i>Residents</a>
-						<a class="nav-link text-white" href="analytics.php"><i class="fas fa-chart-line me-2"></i>Analytics</a>
-						<a class="nav-link text-white" href="chat.php"><i class="fas fa-comments me-2"></i>Chat</a>
-						<hr class="bg-white">
-						<a class="nav-link text-white" href="../../logout.php"><i class="fas fa-sign-out-alt me-2"></i>Logout</a>
-					</nav>
-				</div>
-			</div>
+            <!-- Sidebar -->
+            <div class="col-md-3 col-lg-2 sidebar text-white p-0">
+                <?php include __DIR__ . '/_sidebar.php'; ?>
+            </div>
 
 			<!-- Main Content -->
 			<div class="col-md-9 col-lg-10">

@@ -151,49 +151,7 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
         <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 sidebar text-white p-0">
-                <div class="p-3">
-                    <h4 class="mb-4"><i class="fas fa-shield-alt me-2"></i><?php echo APP_NAME; ?></h4>
-                    <hr class="bg-white">
-                    <nav class="nav flex-column">
-                        <a class="nav-link text-white active" href="index.php">
-                            <i class="fas fa-tachometer-alt me-2"></i>Dashboard
-                        </a>
-                        <a class="nav-link text-white" href="reports.php">
-                            <i class="fas fa-exclamation-triangle me-2"></i>Waste Reports
-                        </a>
-                        <a class="nav-link text-white" href="schedules.php">
-                            <i class="fas fa-calendar me-2"></i>Collection Schedules
-                        </a>
-                        <a class="nav-link text-white" href="collectors.php">
-                            <i class="fas fa-users me-2"></i>Collectors
-                        </a>
-                        <a class="nav-link text-white" href="tracking.php">
-                            <i class="fas fa-map-marker-alt me-2"></i>Tracking
-                        </a>
-                        <a class="nav-link text-white" href="residents.php">
-                            <i class="fas fa-home me-2"></i>Residents
-                        </a>
-                        <a class="nav-link text-white" href="analytics.php">
-                            <i class="fas fa-chart-line me-2"></i>Analytics
-                        </a>
-                        <a class="nav-link text-white position-relative" href="notifications.php">
-                            <i class="fas fa-bell me-2"></i>Notifications
-                            <?php if ($unread_count > 0): ?>
-                                <span class="notification-badge"><?php echo $unread_count; ?></span>
-                            <?php endif; ?>
-                        </a>
-                        <a class="nav-link text-white" href="chat.php">
-                            <i class="fas fa-comments me-2"></i>Chat Support
-                        </a>
-                        <a class="nav-link text-white" href="settings.php">
-                            <i class="fas fa-cog me-2"></i>Settings
-                        </a>
-                        <hr class="bg-white">
-                        <a class="nav-link text-white" href="../../logout.php">
-                            <i class="fas fa-sign-out-alt me-2"></i>Logout
-                        </a>
-                    </nav>
-                </div>
+                <?php include __DIR__ . '/_sidebar.php'; ?>
             </div>
 
             <!-- Main Content -->

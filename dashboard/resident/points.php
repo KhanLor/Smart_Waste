@@ -167,40 +167,7 @@ $recent_achievements = $stmt->get_result();
         <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 sidebar text-white p-0">
-                <div class="p-3">
-                    <h4 class="mb-4"><i class="fas fa-recycle me-2"></i><?php echo APP_NAME; ?></h4>
-                    <hr class="bg-white">
-                    <nav class="nav flex-column">
-                        <a class="nav-link text-white" href="index.php">
-                            <i class="fas fa-home me-2"></i>Dashboard
-                        </a>
-                        <a class="nav-link text-white" href="reports.php">
-                            <i class="fas fa-exclamation-circle me-2"></i>My Reports
-                        </a>
-                        <a class="nav-link text-white" href="submit_report.php">
-                            <i class="fas fa-plus-circle me-2"></i>Submit Report
-                        </a>
-                        <a class="nav-link text-white" href="schedule.php">
-                            <i class="fas fa-calendar me-2"></i>Collection Schedule
-                        </a>
-                        <a class="nav-link text-white active" href="points.php">
-                            <i class="fas fa-leaf me-2"></i>Eco Points
-                        </a>
-                        <a class="nav-link text-white" href="feedback.php">
-                            <i class="fas fa-comment me-2"></i>Feedback
-                        </a>
-                        <a class="nav-link text-white" href="chat.php">
-                            <i class="fas fa-comments me-2"></i>Chat
-                        </a>
-                        <a class="nav-link text-white" href="profile.php">
-                            <i class="fas fa-user me-2"></i>Profile
-                        </a>
-                        <hr class="bg-white">
-                        <a class="nav-link text-white" href="../../logout.php">
-                            <i class="fas fa-sign-out-alt me-2"></i>Logout
-                        </a>
-                    </nav>
-                </div>
+                <?php include __DIR__ . '/_sidebar.php'; ?>
             </div>
 
             <!-- Main Content -->
