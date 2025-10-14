@@ -19,6 +19,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['mark_all_read'])) {
 	exit;
 }
 
+// Handle delete all notifications
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['delete_all'])) {
+	$stmt = $conn->prepare("DELETE FROM notifications WHERE user_id = ?");
+	$stmt->bind_param("i", $user_id);
+	$stmt->execute();
+	header('Location: notifications.php');
+	exit;
+}
+
 // Fetch notifications (most recent first)
 $limit = 100;
 $stmt = $conn->prepare("SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT ?");
@@ -63,11 +72,18 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 				<div class="p-4">
 					<div class="d-flex justify-content-between align-items-center mb-4">
 						<h2 class="mb-0"><i class="fas fa-bell me-2"></i>Notifications</h2>
-						<form method="post" class="m-0">
-							<button type="submit" name="mark_all_read" value="1" class="btn btn-sm btn-outline-secondary" <?php echo $unread_count === 0 ? 'disabled' : '';?>>
-								<i class="fas fa-check-double me-1"></i>Mark all as read
-							</button>
-						</form>
+						<div class="d-flex gap-2">
+							<form method="post" class="m-0">
+								<button type="submit" name="mark_all_read" value="1" class="btn btn-sm btn-outline-secondary" <?php echo $unread_count === 0 ? 'disabled' : '';?>>
+									<i class="fas fa-check-double me-1"></i>Mark all as read
+								</button>
+							</form>
+							<form method="post" class="m-0" onsubmit="return confirmDeleteAll()">
+								<button type="submit" name="delete_all" value="1" class="btn btn-sm btn-outline-danger" <?php echo $notifications->num_rows === 0 ? 'disabled' : '';?>>
+									<i class="fas fa-trash me-1"></i>Delete all
+								</button>
+							</form>
+						</div>
 					</div>
 
 					<div class="card">
@@ -96,6 +112,11 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 	</div>
 
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+	<script>
+		function confirmDeleteAll() {
+			return confirm('Are you sure you want to delete all notifications? This action cannot be undone.');
+		}
+	</script>
 </body>
 </html>
 
