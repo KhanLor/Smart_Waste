@@ -9,6 +9,7 @@ function validate_registration_input(array $input): array {
 	$last_name = trim($input['last_name'] ?? '');
 	$username = trim($input['username'] ?? '');
 	$email = trim($input['email'] ?? '');
+	$phone = trim($input['phone'] ?? '');
 	$password = $input['password'] ?? '';
 	$confirm_password = $input['confirm_password'] ?? '';
 	$address = trim($input['address'] ?? '');
@@ -26,9 +27,12 @@ function validate_registration_input(array $input): array {
 	if (!preg_match('/[^A-Za-z0-9]/', $password)) { $errors[] = 'Password must include at least one special character.'; }
 	if ($confirm_password === '' || $password !== $confirm_password) { $errors[] = 'Passwords do not match.'; }
 	if ($address === '') { $errors[] = 'Address is required.'; }
+	// Phone: required and basic validation (allows +, digits, spaces, parentheses, hyphens)
+	if ($phone === '') { $errors[] = 'Phone is required.'; }
+	elseif (!preg_match('/^[+0-9 ()-]{7,20}$/', $phone)) { $errors[] = 'Phone number is invalid.'; }
 	if (!$accepted_terms) { $errors[] = 'You must accept the Terms and Conditions.'; }
 
-	return [$errors, $first_name, $middle_name, $last_name, $username, $email, $password, $address];
+	return [$errors, $first_name, $middle_name, $last_name, $username, $email, $password, $address, $phone];
 }
 
 function email_exists(mysqli $conn, string $email): bool {
@@ -49,12 +53,13 @@ function insert_user(
 	string $username,
 	string $email,
 	string $password,
-	string $address
+	string $address,
+	string $phone
 ): ?int {
 	$hash = password_hash($password, PASSWORD_DEFAULT);
 	$role = 'resident';
-	$stmt = $conn->prepare('INSERT INTO users (username, first_name, middle_name, last_name, email, password, role, address) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-	$stmt->bind_param('ssssssss', $username, $first_name, $middle_name, $last_name, $email, $hash, $role, $address);
+	$stmt = $conn->prepare('INSERT INTO users (username, first_name, middle_name, last_name, email, password, role, address, phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
+	$stmt->bind_param('sssssssss', $username, $first_name, $middle_name, $last_name, $email, $hash, $role, $address, $phone);
 	if ($stmt->execute()) {
 		$insertId = $stmt->insert_id;
 		$stmt->close();
@@ -68,12 +73,12 @@ $errors = [];
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-	[$errors, $first_name, $middle_name, $last_name, $username, $email, $password, $address] = validate_registration_input($_POST);
+	[$errors, $first_name, $middle_name, $last_name, $username, $email, $password, $address, $phone] = validate_registration_input($_POST);
 	if (empty($errors)) {
 		if (email_exists($conn, $email)) {
 			$errors[] = 'Email is already registered.';
 		} else {
-			$userId = insert_user($conn, $first_name, $middle_name, $last_name, $username, $email, $password, $address);
+			$userId = insert_user($conn, $first_name, $middle_name, $last_name, $username, $email, $password, $address, $phone);
 			if ($userId) {
 				// Create email verification token and send email
 				$conn->query("CREATE TABLE IF NOT EXISTS email_verifications (
@@ -371,6 +376,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						<div class="mb-3">
 							<label class="form-label">Email</label>
 							<input type="email" name="email" class="form-control form-control-lg" placeholder="you@gmail.com" value="<?php echo e($_POST['email'] ?? ''); ?>" required>
+						</div>
+						<div class="mb-3">
+							<label class="form-label">Phone</label>
+							<input type="text" name="phone" class="form-control form-control-lg" placeholder="+63 912 345 6789" value="<?php echo e($_POST['phone'] ?? ''); ?>" required>
 						</div>
 						<div class="mb-3">
 							<label class="form-label">Password</label>

@@ -159,13 +159,25 @@ $recent_activity = $stmt->get_result();
         .sidebar {
             min-height: 100vh;
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            position: relative; /* ensure it's above overlapping content */
-            z-index: 2;
+            /* use normal flow positioning to avoid overlap with main content */
+            position: relative;
+            z-index: 3;
         }
         .card {
             border: none;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .card .card-header {
+            border-radius: 12px 12px 0 0;
+            background-color: rgba(255,255,255,0.9);
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        @media (max-width: 991.98px) {
+            /* prevent fixed sidebar from covering header controls on small screens */
+            .p-4 { padding-top: 56px; }
+            .card { z-index: 1; }
+            .sidebar { z-index: 1050; }
         }
         .nav-link {
             border-radius: 10px;
@@ -194,6 +206,7 @@ $recent_activity = $stmt->get_result();
             color: white;
             border-radius: 15px;
         }
+        .profile-header .card-body { padding: 1.25rem; }
         .stat-card {
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
@@ -227,10 +240,23 @@ $recent_activity = $stmt->get_result();
             justify-content: center;
             font-size: 2rem;
             color: white;
+            flex-shrink: 0;
+            border: 3px solid rgba(255,255,255,0.12);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+        }
+        /* Fix for clipped form fields on some layouts: ensure main content can grow and show overflow */
+        .main-content {
+            overflow: visible !important;
+            min-height: 100vh;
+        }
+        /* Ensure card bodies don't get accidental max-height/overflow from other rules */
+        .main-content .card, .main-content .card-body {
+            overflow: visible !important;
+            max-height: none !important;
         }
     </style>
 </head>
-<body>
+<body class="role-resident">
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
@@ -239,7 +265,7 @@ $recent_activity = $stmt->get_result();
             </div>
 
             <!-- Main Content -->
-            <div class="col-md-9 col-lg-10">
+            <div class="col-md-9 col-lg-10 main-content">
                 <div class="p-4">
                     <!-- Header -->
                     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -471,43 +497,68 @@ $recent_activity = $stmt->get_result();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-        // Form validation
-        document.getElementById('profileForm').addEventListener('submit', function(e) {
-            const firstName = document.getElementById('first_name').value.trim();
-            const lastName = document.getElementById('last_name').value.trim();
-            const email = document.getElementById('email').value.trim();
-            const address = document.getElementById('address').value.trim();
-            
-            if (!firstName || !lastName || !email || !address) {
-                e.preventDefault();
-                alert('Please fill in all required fields.');
-                return false;
-            }
-        });
+        // Defensive: ensure body isn't forcing hidden overflow which can clip page content
+        try { document.body.style.overflow = 'visible'; } catch (e) { /* noop */ }
+        // Form validation (defensive - only attach if forms exist)
+        (function () {
+            var profileForm = document.getElementById('profileForm');
+            if (profileForm) {
+                profileForm.addEventListener('submit', function(e) {
+                    var firstNameEl = document.getElementById('first_name');
+                    var lastNameEl = document.getElementById('last_name');
+                    var emailEl = document.getElementById('email');
+                    var addressEl = document.getElementById('address');
 
-        document.getElementById('passwordForm').addEventListener('submit', function(e) {
-            const currentPassword = document.getElementById('current_password').value;
-            const newPassword = document.getElementById('new_password').value;
-            const confirmPassword = document.getElementById('confirm_password').value;
-            
-            if (!currentPassword || !newPassword || !confirmPassword) {
-                e.preventDefault();
-                alert('Please fill in all password fields.');
-                return false;
+                    var firstName = firstNameEl ? firstNameEl.value.trim() : '';
+                    var lastName = lastNameEl ? lastNameEl.value.trim() : '';
+                    var email = emailEl ? emailEl.value.trim() : '';
+                    var address = addressEl ? addressEl.value.trim() : '';
+
+                    if (!firstName || !lastName || !email || !address) {
+                        e.preventDefault();
+                        // Use a non-blocking toast if available, fallback to alert
+                        if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
+                            // simple alert fallback for now
+                            alert('Please fill in all required fields.');
+                        } else {
+                            alert('Please fill in all required fields.');
+                        }
+                        return false;
+                    }
+                });
             }
-            
-            if (newPassword !== confirmPassword) {
-                e.preventDefault();
-                alert('New password and confirmation do not match.');
-                return false;
+
+            var passwordForm = document.getElementById('passwordForm');
+            if (passwordForm) {
+                passwordForm.addEventListener('submit', function(e) {
+                    var currentPasswordEl = document.getElementById('current_password');
+                    var newPasswordEl = document.getElementById('new_password');
+                    var confirmPasswordEl = document.getElementById('confirm_password');
+
+                    var currentPassword = currentPasswordEl ? currentPasswordEl.value : '';
+                    var newPassword = newPasswordEl ? newPasswordEl.value : '';
+                    var confirmPassword = confirmPasswordEl ? confirmPasswordEl.value : '';
+
+                    if (!currentPassword || !newPassword || !confirmPassword) {
+                        e.preventDefault();
+                        alert('Please fill in all password fields.');
+                        return false;
+                    }
+
+                    if (newPassword !== confirmPassword) {
+                        e.preventDefault();
+                        alert('New password and confirmation do not match.');
+                        return false;
+                    }
+
+                    if (newPassword.length < 6) {
+                        e.preventDefault();
+                        alert('New password must be at least 6 characters long.');
+                        return false;
+                    }
+                });
             }
-            
-            if (newPassword.length < 6) {
-                e.preventDefault();
-                alert('New password must be at least 6 characters long.');
-                return false;
-            }
-        });
+        })();
     </script>
 </body>
 </html>
