@@ -89,6 +89,7 @@ $recent_achievements = $stmt->get_result();
     <title>Eco Points - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/css/dashboard.css">
     <style>
         .sidebar {
             min-height: 100vh;
@@ -153,16 +154,35 @@ $recent_achievements = $stmt->get_result();
             color: #000;
         }
         .level-progress {
-            height: 20px;
+            height: 16px;
             border-radius: 10px;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.25);
         }
         .level-progress .progress-bar {
             border-radius: 10px;
         }
+        /* Mobile-first clarity tweaks */
+        @media (max-width: 767.98px) {
+            .container-fluid { padding-left: 12px; padding-right: 12px; }
+            .card { border-radius: 12px; }
+            /* Header: make title compact and ensure the sidebar toggle sits nicely */
+            .p-4 { padding: 14px !important; }
+            .p-4 h2 { font-size: 1.35rem; margin-bottom: .25rem; }
+            .p-4 .text-end .h2, .p-4 .text-end .h4 { font-size: 1.25rem; }
+            /* Points hero card typography */
+            .points-card h3 { font-size: 1.1rem; }
+            .points-card h1 { font-size: 1.8rem; }
+            .points-card .card-body { padding: 16px; }
+            /* Stack the four statistic cards */
+            .row.mb-4 > .col-md-3 { flex: 0 0 100%; max-width: 100%; }
+            /* Progress bar slightly slimmer on mobile */
+            .level-progress { height: 12px; }
+            /* History/achievements stack */
+            .row > .col-md-4, .row > .col-md-8 { flex: 0 0 100%; max-width: 100%; }
+        }
     </style>
 </head>
-<body>
+<body class="role-resident">
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
@@ -213,8 +233,9 @@ $recent_achievements = $stmt->get_result();
                                     <span>Level <?php echo $current_level; ?></span>
                                     <span><?php echo $user['eco_points']; ?> / <?php echo $next_level_points; ?> points</span>
                                 </div>
-                                <div class="level-progress">
-                                    <div class="progress-bar bg-warning" style="width: <?php echo ($progress / 100) * 100; ?>%"></div>
+                                <div class="progress level-progress">
+                                    <div class="progress-bar bg-warning" role="progressbar" aria-label="Level progress"
+                                         style="width: <?php echo ($progress / 100) * 100; ?>%" aria-valuenow="<?php echo $progress; ?>" aria-valuemin="0" aria-valuemax="100"></div>
                                 </div>
                                 <small class="text-white-50 mt-1 d-block">
                                     <?php echo $next_level_points - $user['eco_points']; ?> points to next level

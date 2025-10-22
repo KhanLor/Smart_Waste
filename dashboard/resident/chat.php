@@ -165,6 +165,7 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
     <title>Chat Support - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/css/dashboard.css">
     <script>
         window.__VAPID_PUBLIC_KEY__ = '<?php echo e(VAPID_PUBLIC_KEY); ?>';
     </script>
@@ -271,6 +272,26 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
             justify-content: center;
             height: 100%;
             color: #6c757d;
+        }
+        /* Mobile-first clarity tweaks */
+        @media (max-width: 767.98px) {
+            .container-fluid { padding-left: 12px; padding-right: 12px; }
+            .card { border-radius: 12px; }
+            /* Header: make title compact and ensure the sidebar toggle sits nicely */
+            .p-4 { padding: 14px !important; }
+            .p-4 h2 { font-size: 1.35rem; margin-bottom: .25rem; }
+            .p-4 .text-end .h4 { font-size: 1.25rem; }
+            /* Authorities list and chat area: stack vertically */
+            .row > .col-md-4, .row > .col-md-8 { flex: 0 0 100%; max-width: 100%; }
+            /* Chat container height adjustment for mobile */
+            .chat-container { height: 50vh; min-height: 400px; }
+            /* Message content slightly wider on mobile */
+            .message-content { max-width: 85%; }
+            /* Input group and button spacing */
+            .chat-input { padding: 12px; }
+            .input-group .form-control { font-size: 0.95rem; }
+            /* Authority items more touch-friendly */
+            .authority-item { padding: 12px; }
         }
     </style>
 </head>

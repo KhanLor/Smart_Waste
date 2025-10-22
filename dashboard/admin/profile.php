@@ -91,6 +91,25 @@ $user = $stmt->get_result()->fetch_assoc();
             border-radius: 15px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
         }
+        /* Mobile-first clarity tweaks */
+        @media (max-width: 767.98px) {
+            .container-fluid { padding-left: 12px; padding-right: 12px; }
+            .card { border-radius: 12px; }
+            /* Header: make title compact */
+            .p-4 { padding: 14px !important; }
+            .p-4 h2 { font-size: 1.35rem; margin-bottom: .5rem; }
+            /* Profile header: stack avatar and info vertically */
+            .profile-header { padding: 1.25rem; }
+            .profile-header .d-flex { flex-direction: column; align-items: center; text-align: center; }
+            .profile-header .profile-avatar { margin-bottom: 1rem; margin-right: 0 !important; width: 100px; height: 100px; font-size: 2rem; }
+            .profile-header h3 { font-size: 1.25rem; }
+            .profile-header p { font-size: 0.9rem; }
+            /* Stack profile cards */
+            .row > .col-md-6 { flex: 0 0 100%; max-width: 100%; }
+            /* Form elements */
+            .card-body .form-control, .card-body textarea { font-size: 0.95rem; }
+            .card-body .btn { width: 100%; }
+        }
     </style>
 </head>
 <body class="role-admin">

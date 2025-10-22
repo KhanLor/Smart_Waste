@@ -82,6 +82,7 @@ if ($schedules->num_rows > 0) {
     <title>Collection Schedule - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../../assets/css/dashboard.css">
     <style>
         .sidebar {
             min-height: 100vh;
@@ -142,9 +143,29 @@ if ($schedules->num_rows > 0) {
             background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             color: white;
         }
+        /* Mobile-first clarity tweaks */
+        @media (max-width: 767.98px) {
+            .container-fluid { padding-left: 12px; padding-right: 12px; }
+            .card { border-radius: 12px; }
+            /* Header: make title compact and ensure the sidebar toggle sits nicely */
+            .p-4 { padding: 14px !important; }
+            .p-4 h2 { font-size: 1.35rem; margin-bottom: .25rem; }
+            .p-4 .text-end .h2, .p-4 .text-end .h4 { font-size: 1.25rem; }
+            /* Next collection card typography */
+            .next-collection-card h4 { font-size: 1.1rem; }
+            .next-collection-card h5 { font-size: 1rem; }
+            .next-collection-card .card-body { padding: 16px; }
+            .next-collection-card .h2 { font-size: 1.5rem; }
+            /* Weekly schedule cards: stack all days */
+            .col-md-6.col-lg-4 { flex: 0 0 100%; max-width: 100%; }
+            /* Collection history and weekly schedule stack */
+            .row > .col-md-8, .row > .col-md-4 { flex: 0 0 100%; max-width: 100%; }
+            /* Tips section: stack columns */
+            .card-body .row > .col-md-4 { flex: 0 0 100%; max-width: 100%; margin-bottom: 16px; }
+        }
     </style>
 </head>
-<body>
+<body class="role-resident">
     <div class="container-fluid">
         <div class="row">
             <!-- Sidebar -->
