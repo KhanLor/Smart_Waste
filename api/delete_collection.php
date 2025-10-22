@@ -28,24 +28,41 @@ if ($history_id <= 0) {
 }
 
 try {
-    // Verify ownership: the history item must belong to this collector
+    // Start transaction to ensure atomicity
+    $conn->begin_transaction();
+    
+    // Verify ownership and check if record still exists
     $stmt = $conn->prepare("SELECT id FROM collection_history WHERE id = ? AND collector_id = ?");
     $stmt->bind_param('ii', $history_id, $collector_id);
     $stmt->execute();
     $exists = $stmt->get_result()->fetch_assoc();
+    
     if (!$exists) {
+        $conn->rollback();
         http_response_code(404);
-        echo json_encode(['error' => 'Record not found']);
+        echo json_encode(['error' => 'Record not found or already deleted']);
         exit;
     }
 
     // Perform delete
-    $stmt = $conn->prepare("DELETE FROM collection_history WHERE id = ?");
-    $stmt->bind_param('i', $history_id);
+    $stmt = $conn->prepare("DELETE FROM collection_history WHERE id = ? AND collector_id = ?");
+    $stmt->bind_param('ii', $history_id, $collector_id);
     $stmt->execute();
-
-    echo json_encode(['success' => true]);
+    
+    // Check if any row was actually deleted
+    if ($stmt->affected_rows === 0) {
+        $conn->rollback();
+        http_response_code(404);
+        echo json_encode(['error' => 'Record not found or already deleted']);
+        exit;
+    }
+    
+    $conn->commit();
+    echo json_encode(['success' => true, 'message' => 'Record deleted successfully']);
 } catch (Exception $e) {
+    if (isset($conn)) {
+        $conn->rollback();
+    }
     http_response_code(500);
     echo json_encode(['error' => 'Internal server error: ' . $e->getMessage()]);
 }

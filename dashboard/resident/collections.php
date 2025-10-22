@@ -168,6 +168,16 @@ if ($table_exists) {
         .status-badge {
             font-size: 0.8rem;
         }
+        .evidence-thumb {
+            max-width: 160px;
+            max-height: 120px;
+            border-radius: 8px;
+            border: 1px solid rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+        }
+        .evidence-link {
+            text-decoration: none;
+        }
     </style>
 </head>
 <body class="role-resident">
@@ -302,6 +312,13 @@ if ($table_exists) {
                                                         <i class="fas fa-sticky-note me-1"></i>
                                                         <?php echo e($history['notes']); ?>
                                                     </small>
+                                                <?php endif; ?>
+                                                <?php if (!empty($history['evidence_image'])): ?>
+                                                    <div class="mt-2">
+                                                        <a class="evidence-link" href="<?php echo BASE_URL . e($history['evidence_image']); ?>" target="_blank" rel="noopener noreferrer" title="View evidence image">
+                                                            <img class="evidence-thumb" src="<?php echo BASE_URL . e($history['evidence_image']); ?>" alt="Evidence image for <?php echo e($history['street_name']); ?>">
+                                                        </a>
+                                                    </div>
                                                 <?php endif; ?>
                                             </div>
                                         </div>

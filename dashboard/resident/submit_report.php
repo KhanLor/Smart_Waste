@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->bind_param("ii", $points, $user_id);
                 $stmt->execute();
 
-                // Create notification
+                // Create notification for resident
                 $stmt = $conn->prepare("
                     INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) 
                     VALUES (?, ?, ?, 'success', 'report', ?)
@@ -99,6 +99,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notification_message = "Your waste report '{$title}' has been submitted. You earned {$points} eco points!";
                 $stmt->bind_param("issi", $user_id, $notification_title, $notification_message, $report_id);
                 $stmt->execute();
+
+                // Create notifications for all authorities about the new report
+                try {
+                    $resident_name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'A resident';
+                    $auth_title = 'New Waste Report: ' . $title;
+                    $auth_message = $resident_name . ' submitted a ' . strtoupper($priority) . ' priority ' . str_replace('_', ' ', $report_type) . ' report at ' . $location;
+                    
+                    $stmtAuth = $conn->prepare("SELECT id FROM users WHERE role IN ('authority', 'admin')");
+                    $stmtAuth->execute();
+                    $authorities = $stmtAuth->get_result();
+                    
+                    $stmtNotif = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) VALUES (?, ?, ?, 'info', 'report', ?)");
+                    while ($auth = $authorities->fetch_assoc()) {
+                        $stmtNotif->bind_param('issi', $auth['id'], $auth_title, $auth_message, $report_id);
+                        $stmtNotif->execute();
+                    }
+                    $stmtNotif->close();
+                    $stmtAuth->close();
+                } catch (Exception $ex) {
+                    // Log but don't fail the transaction
+                    error_log("Failed to notify authorities: " . $ex->getMessage());
+                }
 
                 $conn->commit();
                 $success_message = "Report submitted successfully! You earned {$points} eco points.";

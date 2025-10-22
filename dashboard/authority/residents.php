@@ -596,13 +596,20 @@ $total_reports = $stmt->get_result()->fetch_assoc()['total_reports'];
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }
 
-        function viewResidentDetails(residentId) {
-            // In a real application, you would fetch resident details via AJAX
-            document.getElementById('residentDetailsBody').innerHTML = `
-                <p>Resident ID: ${residentId}</p>
-                <p>This would show detailed resident information including all reports, feedback, and activity history.</p>
-            `;
+        async function viewResidentDetails(residentId) {
+            const body = document.getElementById('residentDetailsBody');
+            body.innerHTML = '<p class="text-center text-muted">Loading details...</p>';
             new bootstrap.Modal(document.getElementById('residentDetailsModal')).show();
+
+            try {
+                const res = await fetch('get_resident_details.php?id=' + encodeURIComponent(residentId), { credentials: 'same-origin' });
+                if (!res.ok) throw new Error('Failed to load details');
+                const html = await res.text();
+                body.innerHTML = html;
+            } catch (err) {
+                body.innerHTML = '<p class="text-danger">Error loading details. Please try again.</p>';
+                console.error(err);
+            }
         }
     </script>
 </body>

@@ -20,9 +20,174 @@ $username = $_SESSION['username'] ?? 'Authority';
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <style>
         .sidebar { min-height: 100vh; background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); }
-        #map { height: 72vh; }
-        .collector-list { max-height: 72vh; overflow: auto; }
-        .list-group-item { cursor: pointer; }
+        
+        /* Map Container */
+        .map-container {
+            position: relative;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        
+        #map { 
+            height: 600px; 
+            width: 100%;
+            z-index: 1;
+        }
+        
+        /* Collector List */
+        .collector-list { 
+            max-height: 600px; 
+            overflow-y: auto;
+            padding: 0.5rem;
+        }
+        
+        .list-group-item { 
+            cursor: pointer;
+            border-radius: 8px !important;
+            margin-bottom: 0.5rem;
+            border: 1px solid #e9ecef;
+            transition: all 0.2s ease;
+        }
+        
+        .list-group-item:hover {
+            background-color: #f8f9fa;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            transform: translateX(4px);
+        }
+        
+        .collector-name {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #212529;
+            margin-bottom: 0.25rem;
+        }
+        
+        .collector-id {
+            font-size: 0.875rem;
+            color: #6c757d;
+        }
+        
+        .last-seen {
+            font-size: 0.75rem;
+            color: #6c757d;
+            display: block;
+            margin-top: 0.25rem;
+        }
+        
+        /* Toggle Paths Button */
+        .toggle-paths-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            border: 2px solid rgba(0,0,0,0.2);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        
+        .toggle-paths-btn:hover {
+            background: #f8f9fa;
+            border-color: #17a2b8;
+            color: #17a2b8;
+        }
+        
+        /* Header */
+        .page-header {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            margin-bottom: 1.5rem;
+        }
+        
+        .page-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: #212529;
+            margin: 0;
+        }
+        
+        .welcome-text {
+            color: #6c757d;
+            font-size: 0.95rem;
+            margin: 0;
+        }
+        
+        /* Card styling */
+        .collector-card {
+            border-radius: 12px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            border: none;
+            height: 100%;
+        }
+        
+        .collector-card .card-header {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+            font-weight: 600;
+            border-radius: 12px 12px 0 0 !important;
+            padding: 1rem 1.25rem;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 767.98px) {
+            #map {
+                height: 400px;
+            }
+            
+            .collector-list {
+                max-height: 300px;
+            }
+            
+            .page-header {
+                flex-direction: column;
+                align-items: flex-start !important;
+            }
+            
+            .welcome-text {
+                margin-top: 0.5rem;
+            }
+            
+            .toggle-paths-btn {
+                font-size: 0.875rem;
+                padding: 6px 12px;
+            }
+            
+            .page-title {
+                font-size: 1.5rem;
+            }
+        }
+        
+        @media (max-width: 991.98px) {
+            .collector-list {
+                max-height: 400px;
+                margin-bottom: 1rem;
+            }
+        }
+        
+        /* Scrollbar styling */
+        .collector-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        .collector-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        
+        .collector-list::-webkit-scrollbar-thumb {
+            background: #17a2b8;
+            border-radius: 4px;
+        }
+        
+        .collector-list::-webkit-scrollbar-thumb:hover {
+            background: #138496;
+        }
     </style>
 </head>
 <body class="role-authority">
@@ -35,22 +200,39 @@ $username = $_SESSION['username'] ?? 'Authority';
 
             <!-- Main Content -->
             <div class="col-md-9 col-lg-10">
-                <div class="p-4">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
-                        <h2>Live Tracking</h2>
-                        <div class="text-muted">Welcome, <?php echo htmlspecialchars($username); ?>!</div>
+                <div class="p-3 p-md-4">
+                    <!-- Page Header -->
+                    <div class="page-header d-flex justify-content-between align-items-center">
+                        <h1 class="page-title">
+                            <i class="fas fa-map-marker-alt me-2"></i>Live Tracking
+                        </h1>
+                        <p class="welcome-text">Welcome, <?php echo htmlspecialchars($username); ?>!</p>
                     </div>
-                    <div class="row">
-                        <div class="col-md-4">
-                            <div class="card mb-3">
-                                <div class="card-header bg-light"><strong>Collectors</strong></div>
-                                <div class="card-body collector-list">
-                                    <div class="list-group" id="collectorList"></div>
+                    
+                    <!-- Content Grid -->
+                    <div class="row g-3">
+                        <!-- Collectors List -->
+                        <div class="col-12 col-lg-4 order-2 order-lg-1">
+                            <div class="card collector-card">
+                                <div class="card-header">
+                                    <i class="fas fa-users me-2"></i>Active Collectors
+                                </div>
+                                <div class="card-body p-2 collector-list">
+                                    <div class="list-group" id="collectorList">
+                                        <div class="text-center text-muted py-4">
+                                            <i class="fas fa-spinner fa-spin fa-2x mb-2"></i>
+                                            <p>Loading collectors...</p>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-8">
-                            <div id="map" class="mb-3"></div>
+                        
+                        <!-- Map -->
+                        <div class="col-12 col-lg-8 order-1 order-lg-2">
+                            <div class="map-container">
+                                <div id="map"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -86,9 +268,15 @@ $username = $_SESSION['username'] ?? 'Authority';
     async function loadCollectors(){
         const res = await fetch('../../api/get_collectors_locations.php');
         const json = await res.json();
-        if (!json.success) return;
         const list = document.getElementById('collectorList');
+        
+        if (!json.success || !json.collectors || json.collectors.length === 0) {
+            list.innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-info-circle fa-2x mb-2"></i><p>No active collectors</p></div>';
+            return;
+        }
+        
         list.innerHTML = '';
+        
         for (const c of json.collectors) {
             const id = c.collector_id;
             const name = c.name || ('Collector ' + id);
@@ -96,11 +284,26 @@ $username = $_SESSION['username'] ?? 'Authority';
             const updated = c.updated_at ? new Date(c.updated_at).toLocaleString() : 'Never';
 
             const item = document.createElement('div');
-            item.className = 'list-group-item d-flex justify-content-between align-items-center';
+            item.className = 'list-group-item list-group-item-action';
             item.setAttribute('data-collector-id', id);
-            item.innerHTML = `<div><strong>${name}</strong><br><small class="text-muted">ID: ${id}</small></div><small class="text-muted last-seen">${updated}</small>`;
+            item.innerHTML = `
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <div class="collector-name">
+                            <i class="fas fa-truck text-info me-2"></i>${name}
+                        </div>
+                        <div class="collector-id">ID: ${id}</div>
+                        <small class="last-seen">
+                            <i class="far fa-clock me-1"></i>${updated}
+                        </small>
+                    </div>
+                    <div>
+                        <i class="fas fa-chevron-right text-muted"></i>
+                    </div>
+                </div>
+            `;
             item.addEventListener('click', () => {
-                if (lat && lng) map.setView([lat,lng],14);
+                if (lat && lng) map.setView([lat,lng],15);
                 if (markers[id]) markers[id].openPopup();
             });
             list.appendChild(item);
@@ -124,12 +327,9 @@ $username = $_SESSION['username'] ?? 'Authority';
     // Toggle paths button
     (function addToggle(){
         const btn = document.createElement('button');
-        btn.className = 'btn btn-outline-info btn-sm';
-        btn.style.position = 'absolute';
-        btn.style.right = '18px';
-        btn.style.top = '18px';
-        btn.innerHTML = '<i class="fas fa-route me-1"></i>Toggle Paths';
-        document.body.appendChild(btn);
+        btn.className = 'btn btn-info toggle-paths-btn';
+        btn.innerHTML = '<i class="fas fa-route me-2"></i>Toggle Paths';
+        document.querySelector('.map-container').appendChild(btn);
         let visible = true;
         btn.addEventListener('click', () => {
             visible = !visible;
@@ -137,6 +337,8 @@ $username = $_SESSION['username'] ?? 'Authority';
                 const p = polylinesByCollector[id];
                 if (visible) map.addLayer(p); else map.removeLayer(p);
             }
+            btn.classList.toggle('btn-info', visible);
+            btn.classList.toggle('btn-outline-info', !visible);
         });
     })();
 

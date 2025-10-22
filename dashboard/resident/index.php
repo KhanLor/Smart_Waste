@@ -127,6 +127,34 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
         .report-item.low {
             border-left-color: #28a745;
         }
+        /* Mobile responsiveness tweaks */
+        @media (max-width: 767.98px) {
+            .container-fluid { padding-left: 10px; padding-right: 10px; }
+            .sidebar { min-height: auto; position: relative; }
+            .card { border-radius: 12px; }
+            .stat-card .card-body { padding: 12px; }
+            /* Make stat cards full width on small screens */
+            .row.mb-4 > .col-md-4 { flex: 0 0 100%; max-width: 100%; }
+            /* Quick action buttons: ensure they stack and fill width */
+            .row.mb-4 .card .row > .col-md-3 { flex: 0 0 50%; max-width: 50%; }
+            @media (max-width: 420px) {
+                .row.mb-4 .card .row > .col-md-3 { flex: 0 0 100%; max-width: 100%; }
+            }
+            /* Map height smaller on mobile */
+            #residentMap { height: 210px !important; }
+            /* Recent reports and schedule stack full width */
+            .col-md-6 { flex: 0 0 100%; max-width: 100%; }
+            /* Card header controls wrap */
+            .card-header.d-flex { flex-wrap: wrap; gap: 8px; }
+            .card-header.d-flex .btn { margin-top: 6px; }
+            /* Notifications and alerts full width */
+            .alert { font-size: 0.95rem; }
+            /* Reduce paddings and text sizes for compactness */
+            .p-4 { padding: 12px !important; }
+            h2 { font-size: 1.2rem; }
+            .h4 { font-size: 1.25rem; }
+            .schedule-item { padding: 10px; }
+        }
     </style>
 </head>
 <body class="role-resident">

@@ -37,6 +37,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 if ($stmt->execute()) {
                     $success_message = 'Collection schedule added successfully.';
+                    $new_schedule_id = $conn->insert_id;
+                    // Fan-out in-app notifications to residents whose address matches street or area
+                    try {
+                        $notif_title = 'New Collection Scheduled';
+                        $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst(strtolower($collection_day)), $collection_time);
+                        $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
+                        $likeStreet = '%' . $street_name . '%';
+                        $likeArea = '%' . $area . '%';
+                        $stmtU->bind_param('ss', $likeStreet, $likeArea);
+                        $stmtU->execute();
+                        $resU = $stmtU->get_result();
+                        if ($resU && $resU->num_rows > 0) {
+                            $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (?, ?, ?, 'info', 'schedule', ?, CURRENT_TIMESTAMP)");
+                            while ($u = $resU->fetch_assoc()) {
+                                $uid = (int)$u['id'];
+                                $stmtN->bind_param('issi', $uid, $notif_title, $notif_message, $new_schedule_id);
+                                $stmtN->execute();
+                            }
+                            $stmtN->close();
+                        }
+                        $stmtU->close();
+                    } catch (Throwable $e) { /* ignore */ }
                     // Realtime: notify residents about new schedule
                     try {
                         $pusher = new Pusher\Pusher(PUSHER_KEY, PUSHER_SECRET, PUSHER_APP_ID, ['cluster' => PUSHER_CLUSTER, 'useTLS' => PUSHER_USE_TLS]);
@@ -97,6 +119,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 if ($stmt->execute()) {
                     $success_message = 'Collection schedule updated successfully.';
+                    // Fan-out in-app notifications to residents whose address matches street or area
+                    try {
+                        $notif_title = 'Collection Schedule Updated';
+                        $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst(strtolower($collection_day)), $collection_time);
+                        $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
+                        $likeStreet = '%' . $street_name . '%';
+                        $likeArea = '%' . $area . '%';
+                        $stmtU->bind_param('ss', $likeStreet, $likeArea);
+                        $stmtU->execute();
+                        $resU = $stmtU->get_result();
+                        if ($resU && $resU->num_rows > 0) {
+                            $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (?, ?, ?, 'info', 'schedule', ?, CURRENT_TIMESTAMP)");
+                            while ($u = $resU->fetch_assoc()) {
+                                $uid = (int)$u['id'];
+                                $stmtN->bind_param('issi', $uid, $notif_title, $notif_message, $schedule_id);
+                                $stmtN->execute();
+                            }
+                            $stmtN->close();
+                        }
+                        $stmtU->close();
+                    } catch (Throwable $e) { /* ignore */ }
                     // Realtime: notify residents about updated schedule
                     try {
                         $pusher = new Pusher\Pusher(PUSHER_KEY, PUSHER_SECRET, PUSHER_APP_ID, ['cluster' => PUSHER_CLUSTER, 'useTLS' => PUSHER_USE_TLS]);

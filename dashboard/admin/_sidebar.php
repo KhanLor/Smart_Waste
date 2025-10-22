@@ -67,6 +67,9 @@ if (!function_exists('admin_active')) {
 		<a class="nav-link text-white<?php echo admin_active('settings.php', $currentFile); ?>" href="settings.php">
 			<i class="fas fa-cog me-2"></i>Settings
 		</a>
+		<a class="nav-link text-white<?php echo admin_active('profile.php', $currentFile); ?>" href="profile.php">
+			<i class="fas fa-user me-2"></i>Profile
+		</a>
 		<hr class="bg-white">
 		<a class="nav-link text-white" href="../../logout.php">
 			<i class="fas fa-sign-out-alt me-2"></i>Logout

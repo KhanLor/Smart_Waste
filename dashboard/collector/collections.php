@@ -82,6 +82,18 @@ $username = $_SESSION['username'] ?? 'Collector';
     </div>
 
     <script>
+    // Global processing flag to prevent concurrent requests
+    let isProcessing = false;
+    
+    // Track processed actions to prevent duplicate submissions
+    // Load from localStorage to persist across page navigations
+    const processedActions = new Set(JSON.parse(localStorage.getItem('processedCollectionActions') || '[]'));
+    
+    // Function to save processed actions to localStorage
+    function saveProcessedActions() {
+        localStorage.setItem('processedCollectionActions', JSON.stringify([...processedActions]));
+    }
+    
     async function loadHistory() {
         const params = new URLSearchParams();
         params.set('from', document.getElementById('from').value);
@@ -103,7 +115,9 @@ $username = $_SESSION['username'] ?? 'Collector';
                 // Actions: Pending, Start (in_progress), Complete
                 let actionsHtml = '';
                 if ((it.status || '') === 'completed') {
-                    actionsHtml = '<span class="text-success small">Completed</span>';
+                    actionsHtml = '<span class="text-success fw-bold small"><i class="fas fa-check-circle me-1"></i>Completed</span>';
+                } else if ((it.status || '') === 'missed') {
+                    actionsHtml = '<span class="text-danger fw-bold small"><i class="fas fa-exclamation-circle me-1"></i>Missed</span>';
                 } else {
                     // include delete action per history record (use it.id as history id)
                     const historyId = it.id;
@@ -166,27 +180,180 @@ $username = $_SESSION['username'] ?? 'Collector';
     document.getElementById('rows').addEventListener('click', async (e) => {
         const btn = e.target.closest('.status-action');
         if (!btn) return;
+        
+        // Prevent if already processing
+        if (isProcessing) {
+            console.log('⛔ BLOCKED: Already processing a request');
+            return;
+        }
+        
+        // Check if button is already disabled
+        if (btn.disabled) {
+            console.log('⛔ BLOCKED: Button already disabled');
+            return;
+        }
+        
         const taskId = btn.dataset.id;
         const status = btn.dataset.status;
         if (!taskId || !status) return;
+        
+        // Create unique action key
+        const actionKey = `status-${taskId}-${status}`;
+        
+        // Check if this action was already processed
+        if (processedActions.has(actionKey)) {
+            console.log('⛔ BLOCKED: Action already processed');
+            return;
+        }
+        
+        console.log('✅ Processing status update:', status, 'for task:', taskId);
+        
+        // Set flags immediately
+        isProcessing = true;
+        processedActions.add(actionKey);
+        saveProcessedActions();
+        
+        // Get all buttons in the same button group
+        const btnGroup = btn.closest('.btn-group');
+        const allButtons = btnGroup ? btnGroup.querySelectorAll('button') : [btn];
+        
+        // Disable all buttons immediately
+        allButtons.forEach(b => {
+            b.disabled = true;
+            b.style.opacity = '0.5';
+            b.style.pointerEvents = 'none';
+        });
+        
+        // Special handling: If clicking completed or missed, permanently lock the opposite action
+        if (status === 'completed') {
+            const missedKey = `status-${taskId}-missed`;
+            processedActions.add(missedKey); // Prevent missed from being clicked
+            saveProcessedActions();
+            console.log('🔒 Locked "Missed" action since "Completed" was clicked');
+        } else if (status === 'missed') {
+            const completedKey = `status-${taskId}-completed`;
+            processedActions.add(completedKey); // Prevent completed from being clicked
+            saveProcessedActions();
+            console.log('🔒 Locked "Completed" action since "Missed" was clicked');
+        }
+        
+        // If status is missed, prompt for a reason
+        if (status === 'missed') {
+            const reason = prompt('Please provide a reason why this collection was missed:');
+            if (!reason || reason.trim() === '') {
+                console.log('❌ Cancelled - user did not provide reason');
+                // Remove from processed set since action was cancelled
+                processedActions.delete(actionKey);
+                // Unlock the opposite action
+                const completedKey = `status-${taskId}-completed`;
+                processedActions.delete(completedKey);
+                saveProcessedActions();
+                // Re-enable buttons
+                isProcessing = false;
+                allButtons.forEach(b => {
+                    b.disabled = false;
+                    b.style.opacity = '';
+                    b.style.pointerEvents = '';
+                });
+                return;
+            }
+            
+            // Add comment to form data
+            try {
+                const form = new FormData();
+                form.append('task_id', String(taskId));
+                form.append('status', status);
+                form.append('comment', reason.trim());
+                const res = await fetch('../../api/update_task_status.php', { method: 'POST', body: form });
+                const data = await res.json();
+                if (data && data.success) {
+                    console.log('✅ Success! Reloading history...');
+                    await loadHistory();
+                    // Don't clear processed actions - keep them persisted
+                } else {
+                    console.error('❌ Failed to update status', data);
+                    alert('Failed: ' + (data.error || 'Unknown error'));
+                    // Remove from processed on failure
+                    processedActions.delete(actionKey);
+                    // Unlock the opposite action
+                    const completedKey = `status-${taskId}-completed`;
+                    processedActions.delete(completedKey);
+                    saveProcessedActions();
+                    // Re-enable buttons
+                    allButtons.forEach(b => {
+                        b.disabled = false;
+                        b.style.opacity = '';
+                        b.style.pointerEvents = '';
+                    });
+                }
+            } catch (err) {
+                console.error('❌ Error updating status', err);
+                alert('Error: ' + err.message);
+                // Remove from processed on error
+                processedActions.delete(actionKey);
+                // Unlock the opposite action
+                const completedKey = `status-${taskId}-completed`;
+                processedActions.delete(completedKey);
+                saveProcessedActions();
+                // Re-enable buttons
+                allButtons.forEach(b => {
+                    b.disabled = false;
+                    b.style.opacity = '';
+                    b.style.pointerEvents = '';
+                });
+            } finally {
+                isProcessing = false;
+            }
+            return; // Exit early since we handled missed separately
+        }
+        
         try {
-            btn.disabled = true;
             const form = new FormData();
             form.append('task_id', String(taskId));
             form.append('status', status);
             const res = await fetch('../../api/update_task_status.php', { method: 'POST', body: form });
             const data = await res.json();
             if (data && data.success) {
+                console.log('✅ Success! Reloading history...');
                 await loadHistory();
+                // Don't clear processed actions - keep them persisted
             } else {
-                console.error('Failed to update status', data);
-                alert('Failed to update status');
-                btn.disabled = false;
+                console.error('❌ Failed to update status', data);
+                alert('Failed: ' + (data.error || 'Unknown error'));
+                // Remove from processed on failure
+                processedActions.delete(actionKey);
+                // Unlock the opposite action if it was locked
+                if (status === 'completed') {
+                    const missedKey = `status-${taskId}-missed`;
+                    processedActions.delete(missedKey);
+                }
+                saveProcessedActions();
+                // Re-enable buttons
+                allButtons.forEach(b => {
+                    b.disabled = false;
+                    b.style.opacity = '';
+                    b.style.pointerEvents = '';
+                });
             }
         } catch (err) {
-            console.error('Error updating status', err);
-            alert('Error updating status');
-            btn.disabled = false;
+            console.error('❌ Error updating status', err);
+            alert('Error: ' + err.message);
+            // Remove from processed on error
+            processedActions.delete(actionKey);
+            // Unlock the opposite action if it was locked
+            if (status === 'completed') {
+                const missedKey = `status-${taskId}-missed`;
+                processedActions.delete(missedKey);
+            }
+            saveProcessedActions();
+            // Re-enable buttons
+            allButtons.forEach(b => {
+                b.disabled = false;
+                b.style.opacity = '';
+                b.style.pointerEvents = '';
+            });
+        } finally {
+            isProcessing = false;
         }
     });
 
@@ -194,26 +361,88 @@ $username = $_SESSION['username'] ?? 'Collector';
     document.getElementById('rows').addEventListener('click', async (e) => {
         const del = e.target.closest('.delete-action');
         if (!del) return;
+        
+        // Prevent if already processing
+        if (isProcessing) {
+            console.log('⛔ BLOCKED: Already processing a request');
+            return;
+        }
+        
+        // Check if button is already disabled
+        if (del.disabled) {
+            console.log('⛔ BLOCKED: Button already disabled');
+            return;
+        }
+        
         const historyId = del.dataset.historyId;
         if (!historyId) return;
-        if (!confirm('Are you sure you want to delete this collection record? This cannot be undone.')) return;
+        
+        // Create unique action key
+        const actionKey = `delete-${historyId}`;
+        
+        // Check if this action was already processed
+        if (processedActions.has(actionKey)) {
+            console.log('⛔ BLOCKED: Delete action already processed');
+            return;
+        }
+        
+        if (!confirm('Are you sure you want to delete this collection record? This cannot be undone.')) {
+            return;
+        }
+        
+        console.log('✅ Processing delete for history:', historyId);
+        
+        // Set flags immediately
+        isProcessing = true;
+        processedActions.add(actionKey);
+        
+        // Get all buttons in the same button group
+        const btnGroup = del.closest('.btn-group');
+        const allButtons = btnGroup ? btnGroup.querySelectorAll('button') : [del];
+        
+        // Disable all buttons immediately
+        allButtons.forEach(b => {
+            b.disabled = true;
+            b.style.opacity = '0.5';
+            b.style.pointerEvents = 'none';
+        });
+        
         try {
-            del.disabled = true;
             const form = new FormData();
             form.append('history_id', String(historyId));
             const res = await fetch('../../api/delete_collection.php', { method: 'POST', body: form });
             const data = await res.json();
             if (data && data.success) {
+                console.log('✅ Success! Reloading history...');
                 await loadHistory();
+                // Don't clear processed actions - keep them persisted
             } else {
-                console.error('Failed to delete', data);
-                alert('Failed to delete record');
-                del.disabled = false;
+                console.error('❌ Failed to delete', data);
+                alert('Failed: ' + (data.error || 'Unknown error'));
+                // Remove from processed on failure
+                processedActions.delete(actionKey);
+                saveProcessedActions();
+                // Re-enable buttons
+                allButtons.forEach(b => {
+                    b.disabled = false;
+                    b.style.opacity = '';
+                    b.style.pointerEvents = '';
+                });
             }
         } catch (err) {
-            console.error('Error deleting record', err);
-            alert('Error deleting record');
-            del.disabled = false;
+            console.error('❌ Error deleting record', err);
+            alert('Error: ' + err.message);
+            // Remove from processed on error
+            processedActions.delete(actionKey);
+            saveProcessedActions();
+            // Re-enable buttons
+            allButtons.forEach(b => {
+                b.disabled = false;
+                b.style.opacity = '';
+                b.style.pointerEvents = '';
+            });
+        } finally {
+            isProcessing = false;
         }
     });
     </script>

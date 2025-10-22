@@ -2,7 +2,33 @@
 
 A comprehensive web application for managing waste collection operations with role-based dashboards for residents, collectors, authorities, and admins.
 
-## 🌟 Features
+## � What's New (Oct 2025)
+
+Recent improvements and fixes shipped in this update:
+
+- Live Tracking UI redesign (Admin & Authority)
+   - Cleaner, mobile‑first layout with better spacing and card hierarchy
+   - Map wrapped in a safe container with rounded corners and shadows
+   - Toggle Paths button pinned to the map, with visual on/off state
+   - Collector list items redesigned for clarity with icons and hover states
+- Profile image upload for all roles (Resident, Collector, Admin, Authority)
+   - New API: `api/upload_profile_image.php`
+   - Storage: `uploads/profiles/`
+   - Validation: JPG/PNG/GIF/WebP up to 5MB, MIME checks, image validation
+   - Optional optimization (resize to max 400x400) when PHP GD is available
+   - Safe fallback: uploads still work without GD (no resizing)
+   - Added profile links to Admin and Authority sidebars
+- Diagnostics and utilities
+   - `phpinfo.php` to verify loaded PHP config/extensions
+   - `test_upload_permissions.php` to check upload permissions, tmp dir, and GD
+   - `restart_apache.bat` helper to restart Apache on Windows/XAMPP
+- Documentation
+   - `docs/PROFILE_IMAGE_FEATURE.md` – feature overview and usage
+   - `docs/GD_EXTENSION_FIX.md` & `docs/FIX_GD_EXTENSION.md` – enabling GD and troubleshooting
+
+If you’re upgrading, ensure the new `uploads/profiles/` directory exists and is writable.
+
+## �🌟 Features
 
 ### For Residents
 - **Waste Report Submission**: Submit detailed reports with images, location, and priority levels
@@ -38,12 +64,15 @@ A comprehensive web application for managing waste collection operations with ro
 - **Database**: MySQL with comprehensive schema for all features
 - **Authentication**: Secure session-based authentication with role management
 - **File Upload**: Secure image upload for waste reports
+- **Profile Photos**: Secure profile image upload with optional server-side optimization
 - **Real-time Updates**: Auto-refresh functionality for chat and notifications
 
 ## 📋 Requirements
 
 - **Server**: XAMPP, WAMP, or any PHP-compatible web server
 - **PHP**: 7.4 or higher
+- PHP extensions:
+   - gd (recommended, used for profile-image optimization; uploads still work without it)
 - **MySQL**: 5.7 or higher
 - **Web Browser**: Modern browser with JavaScript enabled
 
@@ -98,6 +127,17 @@ Also create evidence folder (for collector photo uploads):
 ```bash
 mkdir -p uploads/evidence
 chmod 755 uploads/evidence
+```
+
+Create a folder for profile photos:
+```bash
+mkdir -p uploads/profiles
+chmod 755 uploads/profiles
+```
+
+Windows (XAMPP) users can grant write access with PowerShell (run as Administrator):
+```powershell
+icacls "C:\xampp\htdocs\smart_waste\uploads\profiles" /grant Everyone:(OI)(CI)M /T
 ```
 
 ### 6. Access the Application
@@ -241,6 +281,11 @@ The system includes the following main tables:
    - Check file size limits in PHP configuration
    - Verify allowed file types
    - Ensure upload directory is writable
+   - For profile images: if you see `Call to undefined function imagecreatefromjpeg()` enable the GD extension
+     - Edit `C:\xampp\php\php.ini` and ensure `extension=gd` (uncomment if needed)
+     - Restart Apache from XAMPP Control Panel or run `restart_apache.bat`
+     - Verify at `http://localhost/smart_waste/phpinfo.php` that the `gd` section appears
+     - If GD isn’t available, uploads still work (without resizing)
 
 ### Debug Mode
 Enable error reporting in `config/config.php`:
@@ -248,6 +293,10 @@ Enable error reporting in `config/config.php`:
 error_reporting(E_ALL);
 ini_set('display_errors', 1);
 ```
+
+### Quick Diagnostics
+- PHP info: `http://localhost/your-project-folder/phpinfo.php`
+- Upload permissions & GD test: `http://localhost/your-project-folder/test_upload_permissions.php`
 
 ## 📈 Future Enhancements
 

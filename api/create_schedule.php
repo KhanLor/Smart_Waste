@@ -85,15 +85,28 @@ try {
 		// Fail silently; push is best-effort
 	}
 
-    // Persist an in-app notification for the area (for residents to see)
+    // Persist in-app notifications for matched residents (fan-out per user for unread badges)
     $notif_title = 'New Collection Scheduled';
     $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst($collection_day), $collection_time);
 
-    // Insert into notifications table for area residents (we'll set user_id NULL for area-wide)
-    $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (NULL, ?, ?, 'info', 'schedule', ?, CURRENT_TIMESTAMP)");
-    $stmtN->bind_param('ssi', $notif_title, $notif_message, $schedule_id);
-    $stmtN->execute();
-    $stmtN->close();
+    // Find residents whose address matches the street or area
+    $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
+    $likeStreet = '%' . $street_name . '%';
+    $likeArea = '%' . $area . '%';
+    $stmtU->bind_param('ss', $likeStreet, $likeArea);
+    $stmtU->execute();
+    $resU = $stmtU->get_result();
+
+    if ($resU && $resU->num_rows > 0) {
+        $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (?, ?, ?, 'info', 'schedule', ?, CURRENT_TIMESTAMP)");
+        while ($u = $resU->fetch_assoc()) {
+            $uid = (int)$u['id'];
+            $stmtN->bind_param('issi', $uid, $notif_title, $notif_message, $schedule_id);
+            $stmtN->execute();
+        }
+        $stmtN->close();
+    }
+    $stmtU->close();
 
     // Queue notification job for assigned collector (if any)
     $stmtJ = $conn->prepare("INSERT INTO notification_jobs (target_type, target_value, title, message, payload, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
@@ -104,7 +117,7 @@ try {
         $stmtJ->execute();
     }
 
-    // Queue an area-wide job
+    // Queue an area-wide job (web push)
     $t = 'area'; $v = $area;
     $stmtJ->bind_param('sssss', $t, $v, $notif_title, "Collection scheduled for {$street_name} on " . ucfirst($collection_day) . " at {$collection_time}", $payload);
     $stmtJ->execute();

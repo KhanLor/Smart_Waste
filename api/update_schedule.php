@@ -84,15 +84,27 @@ try {
 		// Fail silently; push is best-effort
 	}
 
-    // Persist in-app notification and queue notification jobs
+    // Persist in-app notifications per resident (fan-out) and queue notification jobs
     $notif_title = 'Collection Schedule Updated';
     $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst($collection_day), $collection_time);
 
-    // Insert into notifications table (area-wide)
-    $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (NULL, ?, ?, 'info', 'schedule', ?, CURRENT_TIMESTAMP)");
-    $stmtN->bind_param('ssi', $notif_title, $notif_message, $id);
-    $stmtN->execute();
-    $stmtN->close();
+    // Find residents whose address matches the street or area
+    $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
+    $likeStreet = '%' . $street_name . '%';
+    $likeArea = '%' . $area . '%';
+    $stmtU->bind_param('ss', $likeStreet, $likeArea);
+    $stmtU->execute();
+    $resU = $stmtU->get_result();
+    if ($resU && $resU->num_rows > 0) {
+        $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (?, ?, ?, 'info', 'schedule', ?, CURRENT_TIMESTAMP)");
+        while ($u = $resU->fetch_assoc()) {
+            $uid = (int)$u['id'];
+            $stmtN->bind_param('issi', $uid, $notif_title, $notif_message, $id);
+            $stmtN->execute();
+        }
+        $stmtN->close();
+    }
+    $stmtU->close();
 
     // Queue jobs
     $stmtJ = $conn->prepare("INSERT INTO notification_jobs (target_type, target_value, title, message, payload, created_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)");
@@ -113,7 +125,7 @@ try {
         $stmtJ->execute();
     }
 
-    // Area-wide job
+    // Area-wide job (web push)
     $t = 'area'; $v = $area;
     $stmtJ->bind_param('sssss', $t, $v, $notif_title, "Collection updated for {$street_name} on " . ucfirst($collection_day) . " at {$collection_time}", $payload);
     $stmtJ->execute();

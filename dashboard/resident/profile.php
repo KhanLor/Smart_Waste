@@ -243,6 +243,18 @@ $recent_activity = $stmt->get_result();
             flex-shrink: 0;
             border: 3px solid rgba(255,255,255,0.12);
             box-shadow: 0 4px 8px rgba(0,0,0,0.12);
+            overflow: hidden;
+        }
+        .profile-avatar .btn-light {
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            border: 2px solid white;
+        }
+        .profile-avatar .btn-light:hover {
+            background: #28a745 !important;
+            border-color: #28a745 !important;
+            color: white;
+            transform: scale(1.05);
+            transition: all 0.2s ease;
         }
         /* Fix for clipped form fields on some layouts: ensure main content can grow and show overflow */
         .main-content {
@@ -300,8 +312,16 @@ $recent_activity = $stmt->get_result();
                             <div class="row align-items-center">
                                 <div class="col-md-8">
                                     <div class="d-flex align-items-center">
-                                        <div class="profile-avatar me-4">
-                                            <i class="fas fa-user"></i>
+                                        <div class="profile-avatar me-4 position-relative" id="profileAvatarContainer">
+                                            <?php if (!empty($user['profile_image']) && file_exists(__DIR__ . '/../../' . $user['profile_image'])): ?>
+                                                <img src="<?php echo BASE_URL . $user['profile_image']; ?>" alt="Profile" class="w-100 h-100 rounded-circle" style="object-fit: cover;" id="profileImage">
+                                            <?php else: ?>
+                                                <i class="fas fa-user" id="profileIcon"></i>
+                                            <?php endif; ?>
+                                            <button type="button" class="btn btn-sm btn-light position-absolute bottom-0 end-0 rounded-circle" style="width: 35px; height: 35px; padding: 0;" title="Change Photo" onclick="document.getElementById('profileImageInput').click()">
+                                                <i class="fas fa-camera"></i>
+                                            </button>
+                                            <input type="file" id="profileImageInput" accept="image/*" style="display: none;" onchange="uploadProfileImage(this)">
                                         </div>
                                         <div>
                                             <h3 class="mb-1"><?php echo e($user['first_name'] . ' ' . $user['last_name']); ?></h3>
@@ -499,6 +519,114 @@ $recent_activity = $stmt->get_result();
     <script>
         // Defensive: ensure body isn't forcing hidden overflow which can clip page content
         try { document.body.style.overflow = 'visible'; } catch (e) { /* noop */ }
+        
+        // Profile image upload function
+        function uploadProfileImage(input) {
+            if (!input.files || !input.files[0]) {
+                return;
+            }
+            
+            const file = input.files[0];
+            const maxSize = 5 * 1024 * 1024; // 5MB
+            
+            // Validate file size
+            if (file.size > maxSize) {
+                alert('File size must be less than 5MB');
+                input.value = '';
+                return;
+            }
+            
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('Please select a valid image file (JPG, PNG, GIF, or WebP)');
+                input.value = '';
+                return;
+            }
+            
+            // Show loading state
+            const avatarContainer = document.getElementById('profileAvatarContainer');
+            const originalContent = avatarContainer.innerHTML;
+            avatarContainer.innerHTML = '<div class="spinner-border text-light" role="status"><span class="visually-hidden">Uploading...</span></div>';
+            
+            // Create FormData
+            const formData = new FormData();
+            formData.append('profile_image', file);
+            
+            // Upload image
+            fetch('<?php echo BASE_URL; ?>api/upload_profile_image.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.status);
+                }
+                return response.json();
+            })
+            .then(data => {
+                console.log('Upload response:', data); // Debug log
+                
+                if (data.success) {
+                    // Update profile image
+                    avatarContainer.innerHTML = originalContent;
+                    const imgEl = document.getElementById('profileImage');
+                    const iconEl = document.getElementById('profileIcon');
+                    
+                    if (imgEl) {
+                        imgEl.src = data.image_url + '?' + new Date().getTime();
+                    } else if (iconEl) {
+                        // Replace icon with image
+                        const newImg = document.createElement('img');
+                        newImg.src = data.image_url + '?' + new Date().getTime();
+                        newImg.alt = 'Profile';
+                        newImg.className = 'w-100 h-100 rounded-circle';
+                        newImg.style.objectFit = 'cover';
+                        newImg.id = 'profileImage';
+                        iconEl.parentNode.replaceChild(newImg, iconEl);
+                    }
+                    
+                    // Show success message
+                    showAlert('success', data.message);
+                    
+                    // Show debug info if present
+                    if (data.debug) {
+                        console.warn('Debug info:', data.debug);
+                    }
+                } else {
+                    avatarContainer.innerHTML = originalContent;
+                    showAlert('danger', data.message || 'Upload failed');
+                    console.error('Upload error:', data);
+                }
+                input.value = '';
+            })
+            .catch(error => {
+                console.error('Upload error:', error);
+                avatarContainer.innerHTML = originalContent;
+                showAlert('danger', 'An error occurred while uploading the image: ' + error.message);
+                input.value = '';
+            });
+        }
+        
+        // Helper function to show alerts
+        function showAlert(type, message) {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'} me-2"></i>${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            
+            const container = document.querySelector('.p-4');
+            const firstChild = container.firstElementChild.nextElementSibling;
+            container.insertBefore(alertDiv, firstChild);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+        
         // Form validation (defensive - only attach if forms exist)
         (function () {
             var profileForm = document.getElementById('profileForm');
@@ -516,13 +644,7 @@ $recent_activity = $stmt->get_result();
 
                     if (!firstName || !lastName || !email || !address) {
                         e.preventDefault();
-                        // Use a non-blocking toast if available, fallback to alert
-                        if (typeof bootstrap !== 'undefined' && bootstrap.Toast) {
-                            // simple alert fallback for now
-                            alert('Please fill in all required fields.');
-                        } else {
-                            alert('Please fill in all required fields.');
-                        }
+                        alert('Please fill in all required fields.');
                         return false;
                     }
                 });

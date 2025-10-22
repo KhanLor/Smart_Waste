@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 
                 if ($stmt->execute()) {
                     $success_message = 'Message sent successfully.';
+                    $chat_id = $stmt->insert_id;
                     // Send push notification to the receiver (authority)
                     try {
                         $push = new PushNotifications($conn);
@@ -39,6 +40,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     } catch (Exception $ex) {
                         // Ignore push errors
                     }
+
+                    // Create an in-app notification for the receiver (authority)
+                    try {
+                        // Build a concise title and message
+                        $sender_name = '';
+                        try {
+                            if (!isset($user)) {
+                                $stmtU = $conn->prepare("SELECT first_name, last_name FROM users WHERE id = ?");
+                                $stmtU->bind_param('i', $user_id);
+                                $stmtU->execute();
+                                $user = $stmtU->get_result()->fetch_assoc();
+                                $stmtU->close();
+                            }
+                            $sender_name = trim(($user['first_name'] ?? '') . ' ' . ($user['last_name'] ?? '')) ?: 'Resident';
+                        } catch (Exception $e) {}
+
+                        $title = 'New chat message from ' . $sender_name;
+                        $preview_msg = mb_strimwidth($message, 0, 140, '...');
+                        $stmtN = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) VALUES (?, ?, ?, 'info', 'chat', ?)");
+                        if ($stmtN) {
+                            $stmtN->bind_param('issi', $receiver_id, $title, $preview_msg, $chat_id);
+                            $stmtN->execute();
+                            $stmtN->close();
+                        }
+                    } catch (Exception $ex) { /* swallow notification errors */ }
                 } else {
                     throw new Exception('Failed to send message.');
                 }
