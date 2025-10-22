@@ -12,6 +12,12 @@ $user_id = $_SESSION['user_id'] ?? null;
 $success_message = '';
 $error_message = '';
 
+// Get user data
+$stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$user = $stmt->get_result()->fetch_assoc();
+
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $report_type = $_POST['report_type'] ?? '';
@@ -136,12 +142,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 }
-
-// Get user data
-$stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$user = $stmt->get_result()->fetch_assoc();
 ?>
 
 <!DOCTYPE html>

@@ -16,6 +16,7 @@ function rs_active(string $file, string $current): string {
 // Compute unread notification counts for specific sidebar items (schedule and collections)
 $schedule_unread = 0;
 $collections_unread = 0;
+$reports_unread = 0;
 $schedule_preview = [];
 $chat_unread = 0;
 $chat_preview = [];
@@ -48,6 +49,16 @@ if (!empty($user_id) && isset($conn)) {
 		$stmt->execute();
 		$row = $stmt->get_result()->fetch_assoc();
 		$collections_unread = (int)($row['cnt'] ?? 0);
+		$stmt->close();
+	}
+
+	// unread report notifications
+	$stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND is_read = 0 AND reference_type = 'report'");
+	if ($stmt) {
+		$stmt->bind_param('i', $user_id);
+		$stmt->execute();
+		$row = $stmt->get_result()->fetch_assoc();
+		$reports_unread = (int)($row['cnt'] ?? 0);
 		$stmt->close();
 	}
 }
@@ -123,6 +134,8 @@ if (!empty($user_id) && isset($conn)) {
 	.badge-container { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 	.badge-container .fa-chevron-down { margin-left: 4px; }
 	.notification-badge, .badge-container .fa-chevron-down { touch-action: manipulation; }
+	/* Simple badge for nav items without dropdown */
+	.nav-link > .badge-container:not(:has(.fa-chevron-down)) { pointer-events: none; }
 	@media (max-width: 991.98px) {
 		.badge-container { padding: 6px; border-radius: 6px; }
 	}
@@ -139,7 +152,12 @@ if (!empty($user_id) && isset($conn)) {
             <i class="fas fa-home me-2"></i>Dashboard
         </a>
         <a class="nav-link text-white<?php echo rs_active('reports.php', $currentFile); ?>" href="reports.php">
-            <i class="fas fa-exclamation-circle me-2"></i>My Reports
+			<span class="nav-left"><i class="fas fa-exclamation-circle me-2"></i>My Reports</span>
+			<?php if ($reports_unread > 0): ?>
+				<span class="badge-container d-flex align-items-center gap-2">
+					<span class="notification-badge"><?php echo $reports_unread > 99 ? '99+' : $reports_unread; ?></span>
+				</span>
+			<?php endif; ?>
         </a>
         <a class="nav-link text-white<?php echo rs_active('submit_report.php', $currentFile); ?>" href="submit_report.php">
             <i class="fas fa-plus-circle me-2"></i>Submit Report

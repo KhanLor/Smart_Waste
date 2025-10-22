@@ -13,13 +13,17 @@ if (!function_exists('auth_active')) {
 
 <style>
 	.sidebar { position: relative; z-index: 3; }
-	.sidebar .nav-link { background: transparent; }
+	.sidebar .nav-link { background: transparent; position: relative; display: flex; align-items: center; justify-content: flex-start; min-height: 44px; padding-top: 0.5rem; padding-bottom: 0.5rem; }
 	.sidebar .nav-link.active, .sidebar .nav-link:hover { background-color: rgba(255,255,255,0.2); }
 	/* Badge + preview shared styles */
 	.notification-badge { display: inline-flex; align-items: center; justify-content: center; background: #dc3545; color: #fff; border-radius: 999px; padding: 0 7px; font-size: 12px; line-height: 1; height: 20px; min-width: 20px; margin-left:8px; }
 	.nav-item { position: relative; }
+	.nav-left { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; max-width: 180px; flex: 1 1 auto; min-width: 0; }
 	.badge-container { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 	.badge-container .fa-chevron-down { margin-left: 4px; }
+	.notification-badge, .badge-container .fa-chevron-down { touch-action: manipulation; }
+	/* Simple badge for nav items without dropdown */
+	.nav-link > .badge-container:not(:has(.fa-chevron-down)) { pointer-events: none; }
 	#authNotificationsPreview, #authChatPreview { display:none; position:absolute; left:0; top:48px; width:280px; max-height:60vh; overflow-y:auto; z-index:3000; box-shadow:0 8px 24px rgba(0,0,0,0.12); border-radius:8px; }
 	#authNotificationsPreview .card-body, #authChatPreview .card-body { padding: 0.5rem; }
 	.preview-header { display:flex; align-items:center; justify-content: space-between; padding: 0.25rem 0.25rem 0.5rem; border-bottom: 1px solid #e9ecef; margin-bottom: 0.5rem; }
@@ -47,6 +51,7 @@ if (!function_exists('auth_active')) {
 		.sidebar-toggle-btn .bar { display: block; width: 16px; height: 2px; background: #fff; margin: 2px 0; border-radius: 1px; }
 		.sidebar-toggle-btn.fixed { position: fixed; top: 10px; left: 10px; z-index: 1100; }
 		.p-4 > .d-flex.justify-content-between.align-items-center { gap: 8px; }
+		.badge-container { padding: 6px; border-radius: 6px; }
 		#authNotificationsPreview, #authChatPreview { left:0; top:52px; width:100%; position: static; box-shadow:none; max-height:40vh; }
 	}
 </style>
@@ -56,6 +61,7 @@ if (!function_exists('auth_active')) {
 $auth_user_id = $_SESSION['user_id'] ?? null;
 $auth_notif_unread = 0; $auth_notif_preview = [];
 $auth_chat_unread = 0; $auth_chat_preview = [];
+$auth_reports_unread = 0;
 if (!empty($auth_user_id) && isset($conn)) {
     // Notifications
     if ($stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND is_read = 0")) {
@@ -71,6 +77,10 @@ if (!empty($auth_user_id) && isset($conn)) {
     if ($stmt = $conn->prepare("SELECT cm.id, cm.message, cm.is_read, cm.created_at, u.first_name, u.last_name FROM chat_messages cm JOIN users u ON cm.sender_id = u.id WHERE cm.receiver_id = ? ORDER BY cm.is_read ASC, cm.created_at DESC LIMIT 5")) {
         $stmt->bind_param('i', $auth_user_id); $stmt->execute(); $res = $stmt->get_result(); while ($r = $res->fetch_assoc()) { $auth_chat_preview[] = $r; } $stmt->close();
     }
+    // Unread report notifications
+    if ($stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND is_read = 0 AND reference_type = 'report'")) {
+        $stmt->bind_param('i', $auth_user_id); $stmt->execute(); $row = $stmt->get_result()->fetch_assoc(); $auth_reports_unread = (int)($row['cnt'] ?? 0); $stmt->close();
+    }
 }
 ?>
 
@@ -82,7 +92,12 @@ if (!empty($auth_user_id) && isset($conn)) {
 			<i class="fas fa-tachometer-alt me-2"></i>Dashboard
 		</a>
 		<a class="nav-link text-white<?php echo auth_active('reports.php', $currentFile); ?>" href="reports.php">
-			<i class="fas fa-exclamation-triangle me-2"></i>Waste Reports
+			<span class="nav-left"><i class="fas fa-exclamation-triangle me-2"></i>Waste Reports</span>
+			<?php if ($auth_reports_unread > 0): ?>
+				<span class="badge-container d-flex align-items-center gap-2">
+					<span class="notification-badge"><?php echo $auth_reports_unread > 99 ? '99+' : $auth_reports_unread; ?></span>
+				</span>
+			<?php endif; ?>
 		</a>
 		<a class="nav-link text-white<?php echo auth_active('schedules.php', $currentFile); ?>" href="schedules.php">
 			<i class="fas fa-calendar me-2"></i>Collection Schedules

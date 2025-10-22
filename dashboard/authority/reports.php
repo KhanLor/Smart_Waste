@@ -62,6 +62,12 @@ $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $user = $stmt->get_result()->fetch_assoc();
 
+// Count unread report notifications
+$stmt = $conn->prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND reference_type = 'report' AND is_read = 0");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$unread_report_notifications = $stmt->get_result()->fetch_assoc()['count'];
+
 // Get reports with pagination and filters
 $page = $_GET['page'] ?? 1;
 $limit = 15;
@@ -150,6 +156,32 @@ $stmt = $conn->prepare($sql);
 $stmt->bind_param($param_types, ...$params);
 $stmt->execute();
 $reports = $stmt->get_result();
+
+// Get unread notifications for each report (for authority)
+$report_notifications = [];
+if ($reports->num_rows > 0) {
+    $report_ids = [];
+    $reports->data_seek(0);
+    while ($report = $reports->fetch_assoc()) {
+        $report_ids[] = $report['id'];
+    }
+    
+    if (!empty($report_ids)) {
+        $placeholders = str_repeat('?,', count($report_ids) - 1) . '?';
+        $stmt = $conn->prepare("SELECT reference_id, COUNT(*) as unread_count FROM notifications WHERE user_id = ? AND reference_type = 'report' AND reference_id IN ({$placeholders}) AND is_read = 0 GROUP BY reference_id");
+        $bind_params = array_merge([$user_id], $report_ids);
+        $bind_types = 'i' . str_repeat('i', count($report_ids));
+        $stmt->bind_param($bind_types, ...$bind_params);
+        $stmt->execute();
+        $notif_result = $stmt->get_result();
+        
+        while ($notif = $notif_result->fetch_assoc()) {
+            $report_notifications[$notif['reference_id']] = $notif['unread_count'];
+        }
+    }
+    
+    $reports->data_seek(0);
+}
 
 // Get collectors for assignment
 $stmt = $conn->prepare("SELECT id, first_name, last_name FROM users WHERE role = 'collector' ORDER BY first_name, last_name");
@@ -264,7 +296,14 @@ if ($reports->num_rows > 0) {
                     <!-- Header -->
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <h2 class="mb-1">Waste Reports Management</h2>
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <h2 class="mb-0">Waste Reports Management</h2>
+                                <?php if ($unread_report_notifications > 0): ?>
+                                    <span class="badge bg-danger rounded-pill" style="font-size: 0.75rem; padding: 0.35em 0.65em;">
+                                        <?php echo $unread_report_notifications; ?> new report<?php echo $unread_report_notifications > 1 ? 's' : ''; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </div>
                             <p class="text-muted mb-0">Manage and track all waste reports from residents</p>
                         </div>
                         <div class="text-end">
@@ -347,7 +386,14 @@ if ($reports->num_rows > 0) {
                         <?php if ($reports->num_rows > 0): ?>
                             <?php while ($report = $reports->fetch_assoc()): ?>
                                 <div class="col-md-6 col-lg-4 mb-4">
-                                    <div class="card report-card <?php echo $report['priority']; ?>">
+                                    <div class="card report-card <?php echo $report['priority']; ?> position-relative">
+                                        <?php if (isset($report_notifications[$report['id']]) && $report_notifications[$report['id']] > 0): ?>
+                                            <div class="position-absolute" style="top: 10px; right: 50px; z-index: 10;">
+                                                <span class="badge bg-success rounded-pill" style="font-size: 0.7rem; padding: 0.3em 0.6em;">
+                                                    <i class="fas fa-bell" style="font-size: 0.7rem;"></i> New
+                                                </span>
+                                            </div>
+                                        <?php endif; ?>
                                         <div class="card-body">
                                             <!-- Resident Info -->
                                             <div class="resident-info">
@@ -362,12 +408,12 @@ if ($reports->num_rows > 0) {
                                             </div>
 
                                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                                <h6 class="card-title mb-0"><?php echo e($report['title']); ?></h6>
-                                                <div class="dropdown">
+                                                <h6 class="card-title mb-0" style="max-width: 70%; word-wrap: break-word;"><?php echo e($report['title']); ?></h6>
+                                                <div class="dropdown ms-auto" style="flex-shrink: 0;">
                                                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
                                                         <i class="fas fa-ellipsis-v"></i>
                                                     </button>
-                                                    <ul class="dropdown-menu">
+                                                    <ul class="dropdown-menu dropdown-menu-end">
                                                         <li><a class="dropdown-item" href="#" onclick="viewReport(<?php echo $report['id']; ?>)">
                                                             <i class="fas fa-eye me-2"></i>View Details
                                                         </a></li>
@@ -538,6 +584,22 @@ if ($reports->num_rows > 0) {
     <script>
         function viewReport(reportId) {
             console.log('Viewing report:', reportId);
+            
+            // Mark notifications for this report as read
+            fetch('../../api/mark_report_notifications_read.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ report_id: reportId })
+            }).then(response => response.json())
+            .then(data => {
+                if (data.success && data.marked > 0) {
+                    // Update badge counts dynamically without reloading
+                    updateBadgeCounts();
+                }
+            })
+            .catch(error => console.error('Error marking notifications:', error));
             
             // Show loading state
             document.getElementById('reportModalBody').innerHTML = `
@@ -715,6 +777,26 @@ if ($reports->num_rows > 0) {
         function updateStatus(reportId) {
             document.getElementById('statusReportId').value = reportId;
             new bootstrap.Modal(document.getElementById('statusModal')).show();
+        }
+
+        function updateBadgeCounts() {
+            // Update the header badge count
+            const headerBadge = document.querySelector('.d-flex.align-items-center.gap-2 .badge');
+            if (headerBadge) {
+                const currentCount = parseInt(headerBadge.textContent.match(/\d+/)[0]);
+                const newCount = Math.max(0, currentCount - 1);
+                if (newCount > 0) {
+                    headerBadge.textContent = newCount + ' new report' + (newCount > 1 ? 's' : '');
+                } else {
+                    headerBadge.remove();
+                }
+            }
+            
+            // Update the total reports count in header
+            const totalReportsElement = document.querySelector('.h4.text-danger');
+            if (totalReportsElement) {
+                // Optionally refresh this if needed
+            }
         }
     </script>
 </body>
