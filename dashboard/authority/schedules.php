@@ -285,6 +285,42 @@ $stmt->bind_param($param_types, ...$params);
 $stmt->execute();
 $schedules = $stmt->get_result();
 
+// Materialize schedules into array for computing per-schedule unread notifications
+$schedule_rows = $schedules->fetch_all(MYSQLI_ASSOC);
+$schedule_ids = array_map(fn($r) => (int)$r['id'], $schedule_rows);
+
+// Unread collection notifications for header badge
+$unread_collection_count = 0;
+if ($stmtCnt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND reference_type = 'collection' AND is_read = 0")) {
+    $stmtCnt->bind_param('i', $user_id);
+    $stmtCnt->execute();
+    $rowCnt = $stmtCnt->get_result()->fetch_assoc();
+    $unread_collection_count = (int)($rowCnt['cnt'] ?? 0);
+    $stmtCnt->close();
+}
+
+// Per-schedule unread counts by joining notifications -> collection_history
+$per_schedule_unread = [];
+if (!empty($schedule_ids)) {
+    $placeholders = implode(',', array_fill(0, count($schedule_ids), '?'));
+    $types = 'i' . str_repeat('i', count($schedule_ids));
+    $sqlUn = "SELECT ch.schedule_id, COUNT(n.id) AS unread_count
+              FROM notifications n
+              JOIN collection_history ch ON ch.id = n.reference_id
+              WHERE n.user_id = ? AND n.reference_type = 'collection' AND n.is_read = 0
+                AND ch.schedule_id IN ($placeholders)
+              GROUP BY ch.schedule_id";
+    $stmtUn = $conn->prepare($sqlUn);
+    $bindParams = array_merge([$user_id], $schedule_ids);
+    $stmtUn->bind_param($types, ...$bindParams);
+    $stmtUn->execute();
+    $resUn = $stmtUn->get_result();
+    while ($r = $resUn->fetch_assoc()) {
+        $per_schedule_unread[(int)$r['schedule_id']] = (int)$r['unread_count'];
+    }
+    $stmtUn->close();
+}
+
 // Get collectors for assignment
 $stmt = $conn->prepare("SELECT id, first_name, last_name FROM users WHERE role = 'collector' ORDER BY first_name, last_name");
 $stmt->execute();
@@ -311,11 +347,11 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
     <title>Collection Schedules - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../assets/css/dashboard.css">
+    <link rel="stylesheet" href="../../assets/css/dashboard.css?v=20251024">
     <style>
         .sidebar {
             min-height: 100vh;
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            background: linear-gradient(135deg, #8B7E74 0%, #6B635A 100%);
         }
         .card {
             border: none;
@@ -358,6 +394,36 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
         .stat-card.danger {
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
         }
+        /* Notifications UI clarity */
+        .header-update-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 22px;
+            height: 22px;
+            font-size: 12px;
+            margin-left: 8px;
+            vertical-align: middle;
+        }
+        .schedule-card .card-body { position: relative; }
+        .notif-badge {
+            position: absolute;
+            top: 10px;
+            right: 50px; /* leave room for the dropdown */
+            z-index: 2;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 20px;
+            height: 20px;
+            font-size: 11px;
+            pointer-events: none; /* decorative */
+        }
+        @media (max-width: 576px) {
+            .notif-badge { right: 44px; top: 8px; min-width: 18px; height: 18px; font-size: 10px; }
+            .dropdown .btn { padding: 0.25rem 0.4rem; }
+            .card .card-title { font-size: 0.95rem; }
+        }
     </style>
 </head>
 <body class="role-authority">
@@ -374,7 +440,13 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                     <!-- Header -->
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <h2 class="mb-1">Collection Schedules</h2>
+                            <h2 class="mb-1 d-flex align-items-center gap-2">Collection Schedules
+                                <?php if ($unread_collection_count > 0): ?>
+                                    <span class="badge rounded-pill bg-danger header-update-badge" id="headerCollectionBadge" data-bs-toggle="tooltip" data-bs-placement="right" title="New collection updates">
+                                        <?php echo $unread_collection_count > 99 ? '99+' : $unread_collection_count; ?>
+                                    </span>
+                                <?php endif; ?>
+                            </h2>
                             <p class="text-muted mb-0">Manage waste collection schedules and assignments</p>
                         </div>
                         <div>
@@ -476,8 +548,8 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
 
                     <!-- Schedules List -->
                     <div class="row">
-                        <?php if ($schedules->num_rows > 0): ?>
-                            <?php while ($schedule = $schedules->fetch_assoc()): ?>
+                        <?php if (count($schedule_rows) > 0): ?>
+                            <?php foreach ($schedule_rows as $schedule): ?>
                                 <div class="col-md-6 col-lg-4 mb-4">
                                     <div class="card schedule-card <?php echo $schedule['status']; ?>">
                                         <div class="card-body">
@@ -488,6 +560,9 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                                                         <i class="fas fa-ellipsis-v"></i>
                                                     </button>
                                                     <ul class="dropdown-menu">
+                                                        <li><a class="dropdown-item" href="#" onclick="viewScheduleActivity(<?php echo (int)$schedule['id']; ?>)">
+                                                            <i class="fas fa-bell me-2"></i>View Activity
+                                                        </a></li>
                                                         <li><a class="dropdown-item" href="#" onclick="editSchedule(<?php echo $schedule['id']; ?>)">
                                                             <i class="fas fa-edit me-2"></i>Edit
                                                         </a></li>
@@ -497,6 +572,13 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                                                     </ul>
                                                 </div>
                                             </div>
+
+                                            <?php $uCount = (int)($per_schedule_unread[(int)$schedule['id']] ?? 0); ?>
+                                            <?php if ($uCount > 0): ?>
+                                                <span class="badge rounded-pill bg-danger notif-badge" id="schedBadge-<?php echo (int)$schedule['id']; ?>" data-bs-toggle="tooltip" title="New updates for this schedule">
+                                                    <?php echo $uCount > 99 ? '99+' : $uCount; ?>
+                                                </span>
+                                            <?php endif; ?>
                                             
                                             <div class="mb-2">
                                                 <small class="text-muted">
@@ -544,7 +626,7 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                                         </div>
                                     </div>
                                 </div>
-                            <?php endwhile; ?>
+                            <?php endforeach; ?>
                         <?php else: ?>
                             <div class="col-12">
                                 <div class="card">
@@ -674,6 +756,28 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
         </div>
     </div>
 
+    <!-- Schedule Activity Modal -->
+    <div class="modal fade" id="activityModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Schedule Activity</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="activityContent">
+                        <div class="text-center text-muted py-4">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Loading activity...
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Schedule Modal -->
     <div class="modal fade" id="editScheduleModal" tabindex="-1">
         <div class="modal-dialog">
@@ -784,6 +888,14 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
+        // Enable Bootstrap tooltips for badges
+        (function(){
+            try {
+                var triggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+                triggerList.forEach(function(el){ new bootstrap.Tooltip(el); });
+            } catch (e) {}
+        })();
+
         function editSchedule(scheduleId) {
             // In a real application, you would fetch schedule details via AJAX
             // For now, we'll show the modal with empty fields
@@ -794,6 +906,77 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
         function deleteSchedule(scheduleId) {
             document.getElementById('deleteScheduleId').value = scheduleId;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+
+        async function viewScheduleActivity(scheduleId) {
+            try {
+                // Load activity list
+                const modalEl = document.getElementById('activityModal');
+                const contentEl = document.getElementById('activityContent');
+                contentEl.innerHTML = '<div class="text-center text-muted py-4"><i class="fas fa-spinner fa-spin me-2"></i>Loading activity...</div>';
+                const modal = new bootstrap.Modal(modalEl);
+                modal.show();
+
+                const resp = await fetch('../../api/get_schedule_history.php?schedule_id=' + encodeURIComponent(scheduleId));
+                const data = await resp.json();
+                if (!data.success) {
+                    contentEl.innerHTML = '<div class="alert alert-danger">Failed to load activity.</div>';
+                } else {
+                    if (data.count === 0) {
+                        contentEl.innerHTML = '<div class="text-center text-muted py-4">No activity yet for this schedule.</div>';
+                    } else {
+                        const rows = data.items.map(it => {
+                            const badge = it.status === 'completed' ? 'success' : (it.status === 'missed' ? 'danger' : 'secondary');
+                            const ev = it.evidence_image ? `<div class="mt-2"><small class="text-muted">Evidence:</small><br><img src="../../${it.evidence_image}" alt="evidence" style="max-width:100%;height:auto;border-radius:6px;border:1px solid #eee;"/></div>` : '';
+                            const notes = it.notes ? `<div class="mt-2"><small class="text-muted">Notes:</small><div>${it.notes.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div></div>` : '';
+                            const who = it.collector_name ? `<small class="text-muted ms-2"><i class="fas fa-user-tie me-1"></i>${it.collector_name}</small>` : '';
+                            return `
+                                <div class="card mb-2">
+                                    <div class="card-body">
+                                        <div class="d-flex align-items-center justify-content-between">
+                                            <div>
+                                                <span class="badge bg-${badge}">${it.status}</span>
+                                                <small class="text-muted ms-2"><i class="fas fa-calendar-day me-1"></i>${it.date}</small>
+                                                ${who}
+                                            </div>
+                                        </div>
+                                        ${notes}
+                                        ${ev}
+                                    </div>
+                                </div>`;
+                        }).join('');
+                        contentEl.innerHTML = rows;
+                    }
+                }
+
+                // Mark notifications for this schedule as read and update badges
+                try {
+                    const markResp = await fetch('../../api/mark_schedule_notifications_read.php', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ schedule_id: scheduleId })
+                    });
+                    const markData = await markResp.json();
+                    if (markData && markData.success) {
+                        const marked = Number(markData.marked || 0);
+                        if (marked > 0) {
+                            // Remove per-card badge
+                            const b = document.getElementById('schedBadge-' + scheduleId);
+                            if (b) b.remove();
+                            // Decrement header badge
+                            const headerB = document.getElementById('headerCollectionBadge');
+                            if (headerB) {
+                                let current = headerB.innerText === '99+' ? 99 : parseInt(headerB.innerText || '0');
+                                let next = Math.max(0, current - marked);
+                                if (next <= 0) headerB.remove();
+                                else headerB.innerText = next > 99 ? '99+' : String(next);
+                            }
+                        }
+                    }
+                } catch (e) { /* ignore UI update failure */ }
+            } catch (err) {
+                alert('Failed to load activity.');
+            }
         }
 
         // notifyCollector removed — notifications to collectors are disabled from the authority UI.

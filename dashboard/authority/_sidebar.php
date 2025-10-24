@@ -47,7 +47,7 @@ if (!function_exists('auth_active')) {
 		body.sidebar-open .sidebar { left: 0; }
 		.sidebar-overlay { content: ""; position: fixed; inset: 0; background: rgba(0,0,0,0.45); opacity: 0; visibility: hidden; transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out; z-index: 1040; }
 		body.sidebar-open .sidebar-overlay { opacity: 1; visibility: visible; }
-		.sidebar-toggle-btn { border: none; background: #dc3545; color: #fff; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15); padding: 0; margin-right: 10px; }
+		.sidebar-toggle-btn { border: none; background: #8B7E74; color: #fff; width: 28px; height: 28px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 2px 6px rgba(0,0,0,0.15); padding: 0; margin-right: 10px; }
 		.sidebar-toggle-btn .bar { display: block; width: 16px; height: 2px; background: #fff; margin: 2px 0; border-radius: 1px; }
 		.sidebar-toggle-btn.fixed { position: fixed; top: 10px; left: 10px; z-index: 1100; }
 		.p-4 > .d-flex.justify-content-between.align-items-center { gap: 8px; }
@@ -62,6 +62,7 @@ $auth_user_id = $_SESSION['user_id'] ?? null;
 $auth_notif_unread = 0; $auth_notif_preview = [];
 $auth_chat_unread = 0; $auth_chat_preview = [];
 $auth_reports_unread = 0;
+$auth_collection_unread = 0;
 if (!empty($auth_user_id) && isset($conn)) {
     // Notifications
     if ($stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND is_read = 0")) {
@@ -81,6 +82,10 @@ if (!empty($auth_user_id) && isset($conn)) {
     if ($stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND is_read = 0 AND reference_type = 'report'")) {
         $stmt->bind_param('i', $auth_user_id); $stmt->execute(); $row = $stmt->get_result()->fetch_assoc(); $auth_reports_unread = (int)($row['cnt'] ?? 0); $stmt->close();
     }
+	// Unread collection notifications (collector updates)
+	if ($stmt = $conn->prepare("SELECT COUNT(*) AS cnt FROM notifications WHERE user_id = ? AND is_read = 0 AND reference_type = 'collection'")) {
+		$stmt->bind_param('i', $auth_user_id); $stmt->execute(); $row = $stmt->get_result()->fetch_assoc(); $auth_collection_unread = (int)($row['cnt'] ?? 0); $stmt->close();
+	}
 }
 ?>
 
@@ -100,7 +105,12 @@ if (!empty($auth_user_id) && isset($conn)) {
 			<?php endif; ?>
 		</a>
 		<a class="nav-link text-white<?php echo auth_active('schedules.php', $currentFile); ?>" href="schedules.php">
-			<i class="fas fa-calendar me-2"></i>Collection Schedules
+			<span class="nav-left"><i class="fas fa-calendar me-2"></i>Collection Schedules</span>
+			<?php if ($auth_collection_unread > 0): ?>
+				<span class="badge-container d-flex align-items-center gap-2">
+					<span class="notification-badge"><?php echo $auth_collection_unread > 99 ? '99+' : $auth_collection_unread; ?></span>
+				</span>
+			<?php endif; ?>
 		</a>
 		<a class="nav-link text-white<?php echo auth_active('collectors.php', $currentFile); ?>" href="collectors.php">
 			<i class="fas fa-users me-2"></i>Collectors

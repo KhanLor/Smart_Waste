@@ -50,10 +50,10 @@ $user = $stmt->get_result()->fetch_assoc();
     <title>Profile - <?php echo APP_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="../../assets/css/dashboard.css">
+    <link rel="stylesheet" href="../../assets/css/dashboard.css?v=20251024">
     <style>
         .profile-header {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+            background: linear-gradient(135deg, #8B7E74 0%, #6B635A 100%);
             color: white;
             border-radius: 15px;
             padding: 2rem;
@@ -80,8 +80,8 @@ $user = $stmt->get_result()->fetch_assoc();
             border: 2px solid white;
         }
         .profile-avatar .btn-light:hover {
-            background: #dc3545 !important;
-            border-color: #dc3545 !important;
+            background: #8B7E74 !important;
+            border-color: #8B7E74 !important;
             color: white;
             transform: scale(1.05);
             transition: all 0.2s ease;
@@ -91,6 +91,20 @@ $user = $stmt->get_result()->fetch_assoc();
             border-radius: 15px;
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
         }
+        /* Warm grey accents for this profile page */
+        .card-header.bg-danger {
+            background: linear-gradient(135deg, #8B7E74 0%, #6B635A 100%) !important;
+            border-color: #6B635A !important;
+        }
+        .btn-danger {
+            background-color: #8B7E74 !important;
+            border-color: #6B635A !important;
+        }
+        .btn-danger:hover {
+            background-color: #6B635A !important;
+            border-color: #5a524b !important;
+        }
+        .badge.bg-light.text-danger { color: #8B7E74 !important; }
         /* Mobile-first clarity tweaks */
         @media (max-width: 767.98px) {
             .container-fluid { padding-left: 12px; padding-right: 12px; }

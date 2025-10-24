@@ -51,9 +51,9 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 	<title>Notifications - <?php echo APP_NAME; ?></title>
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-	<link rel="stylesheet" href="../../assets/css/dashboard.css">
+	<link rel="stylesheet" href="../../assets/css/dashboard.css?v=20251024">
 	<style>
-		.sidebar { min-height: 100vh; background: linear-gradient(135deg, #17a2b8 0%, #138496 100%); }
+		.sidebar { min-height: 100vh; background: linear-gradient(135deg, #8B7E74 0%, #6B635A 100%); }
 		.nav-link { border-radius: 10px; margin: 2px 0; transition: all 0.3s; }
 		.nav-link:hover, .nav-link.active { background-color: rgba(255,255,255,0.2); transform: translateX(5px); }
 		.notification-badge { position: absolute; top: -5px; right: -5px; background: #dc3545; color: #fff; border-radius: 50%; padding: 2px 6px; font-size: 10px; }

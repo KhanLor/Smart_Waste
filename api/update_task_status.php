@@ -170,6 +170,29 @@ try {
             $stmtJ->execute();
             $stmtJ->close();
         }
+
+        // Also notify authority/admin users inside the app (reference_type 'collection')
+        try {
+            if ($stmtAu = $conn->prepare("SELECT id FROM users WHERE role IN ('authority','admin')")) {
+                $stmtAu->execute();
+                $resAu = $stmtAu->get_result();
+                if ($resAu && $resAu->num_rows > 0) {
+                    $stmtInsA = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id, created_at) VALUES (?, ?, ?, 'info', 'collection', ?, CURRENT_TIMESTAMP)");
+                    while ($au = $resAu->fetch_assoc()) {
+                        $aid = (int)$au['id'];
+                        $msg = $notif_message; // reuse composed message with street/area + status
+                        if ($stmtInsA) {
+                            $stmtInsA->bind_param('issi', $aid, $notif_title, $msg, $history_id);
+                            $stmtInsA->execute();
+                        }
+                    }
+                    if ($stmtInsA) { $stmtInsA->close(); }
+                }
+                $stmtAu->close();
+            }
+        } catch (Throwable $e) {
+            // Swallow authority notification errors to not block collector flow
+        }
     }
 
     echo json_encode(['success' => true]);
