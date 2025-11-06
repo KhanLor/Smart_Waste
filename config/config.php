@@ -36,10 +36,10 @@ if (!defined('SMTP_SECURE')) {
 	define('SMTP_SECURE', 'tls'); // 'tls' or 'ssl'
 }
 if (!defined('SMTP_USERNAME')) {
-	define('SMTP_USERNAME', 'khanyaolor123@gmail.com'); // your Gmail address
+	define('SMTP_USERNAME', 'smartwaste2004@gmail.com'); // your Gmail address
 }
 if (!defined('SMTP_PASSWORD')) {
-	define('SMTP_PASSWORD', 'grxy qpus askr sqlg'); // Gmail App Password
+	define('SMTP_PASSWORD', 'yhyl diyh zxdd ygzf'); // Gmail App Password
 }
 if (!defined('SMTP_FROM_EMAIL')) {
 	define('SMTP_FROM_EMAIL', 'yourgmail@gmail.com');
