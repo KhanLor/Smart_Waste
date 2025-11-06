@@ -393,9 +393,16 @@ async function loadData() {
 // Global processing flag to prevent concurrent requests
 let isProcessing = false;
 
-// Track processed tasks to prevent duplicate submissions
-// Load from localStorage to persist across page navigations
-const processedTasks = new Set(JSON.parse(localStorage.getItem('processedTasks') || '[]'));
+// Use today's date as part of the stored action key so repeated weekly schedules
+// (which reuse the same schedule id) don't remain locked across days.
+const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+// Load persisted processed actions but ignore entries from previous dates
+const _stored = JSON.parse(localStorage.getItem('processedTasks') || '[]');
+const processedTasks = new Set((_stored || []).filter(k => typeof k === 'string' && k.endsWith(`-${todayStr}`)));
+
+function mkKey(id, status) {
+    return `${id}-${status}-${todayStr}`;
+}
 
 // Function to save processed tasks to localStorage
 function saveProcessedTasks() {
@@ -408,8 +415,8 @@ async function handleTaskAction(taskId, status, listItem) {
     console.log('Task ID:', taskId, 'Status:', status);
     console.log('Is Processing:', isProcessing);
     
-    // Create a unique key for this action
-    const actionKey = `${taskId}-${status}`;
+    // Create a unique key for this action (includes today's date)
+    const actionKey = mkKey(taskId, status);
     
     // Block if already processing ANY request
     if (isProcessing) {
@@ -452,12 +459,12 @@ async function handleTaskAction(taskId, status, listItem) {
     
     // Special handling: If clicking completed or missed, permanently mark the opposite action as processed
     if (status === 'completed') {
-        const missedKey = `${taskId}-missed`;
+        const missedKey = mkKey(taskId, 'missed');
         processedTasks.add(missedKey); // Prevent missed from being clicked
         saveProcessedTasks();
         console.log('🔒 Locked "Missed" action since "Completed" was clicked');
     } else if (status === 'missed') {
-        const completedKey = `${taskId}-completed`;
+        const completedKey = mkKey(taskId, 'completed');
         processedTasks.add(completedKey); // Prevent completed from being clicked
         saveProcessedTasks();
         console.log('🔒 Locked "Completed" action since "Missed" was clicked');
@@ -588,12 +595,12 @@ document.getElementById('missedModal').addEventListener('hidden.bs.modal', funct
     if (window.currentMissedTask && !window.missedSubmitted) {
         // User cancelled the modal, unlock the actions
         const { taskId, allButtons, actionKey } = window.currentMissedTask;
-        
+
         processedTasks.delete(actionKey);
-        const completedKey = `${taskId}-completed`;
+        const completedKey = mkKey(taskId, 'completed');
         processedTasks.delete(completedKey);
         saveProcessedTasks();
-        
+
         // Re-enable buttons
         allButtons.forEach(btn => {
             btn.disabled = false;
@@ -601,7 +608,7 @@ document.getElementById('missedModal').addEventListener('hidden.bs.modal', funct
             btn.style.pointerEvents = '';
             btn.style.cursor = '';
         });
-        
+
         console.log('❌ Missed modal cancelled - actions unlocked');
     }
     window.currentMissedTask = null;
@@ -662,7 +669,7 @@ document.getElementById('submitMissed').addEventListener('click', async function
             
             // Unlock actions on failure
             processedTasks.delete(actionKey);
-            const completedKey = `${taskId}-completed`;
+            const completedKey = mkKey(taskId, 'completed');
             processedTasks.delete(completedKey);
             saveProcessedTasks();
             
@@ -682,11 +689,11 @@ document.getElementById('submitMissed').addEventListener('click', async function
         console.error('❌ Error:', err);
         alert('Error: ' + err.message);
         
-        // Unlock actions on error
-        processedTasks.delete(actionKey);
-        const completedKey = `${taskId}-completed`;
-        processedTasks.delete(completedKey);
-        saveProcessedTasks();
+    // Unlock actions on error
+    processedTasks.delete(actionKey);
+    const completedKey = mkKey(taskId, 'completed');
+    processedTasks.delete(completedKey);
+    saveProcessedTasks();
         
         // Re-enable buttons
         allButtons.forEach(btn => {
