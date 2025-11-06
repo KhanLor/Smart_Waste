@@ -739,7 +739,7 @@ if (is_logged_in()) {
                     <h6 class="footer-title">Contact Info</h6>
                     <p class="footer-description">
                         <i class="fas fa-envelope me-2"></i>
-                        khanyaolor123@gmail.com
+                        smartwaste2004@gmail.com
                     </p>
                     <p class="footer-description">
                         <i class="fas fa-phone me-2"></i>
@@ -747,7 +747,7 @@ if (is_logged_in()) {
                     </p>
                     <p class="footer-description">
                         <i class="fas fa-map-marker-alt me-2"></i>
-                        Prk 24 Sampaguita St. Times Beach Davao City
+                        Brgy. Sto Nino Mintal Davao City
                     </p>
                     
                     <h6 class="footer-title mt-4">Newsletter</h6>

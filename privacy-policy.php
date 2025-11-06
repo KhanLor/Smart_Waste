@@ -210,9 +210,9 @@ require_once 'config/config.php';
 							<h3 class="h5 text-success mb-3">10. Contact Us</h3>
 							<p>If you have any questions about this Privacy Policy or our data practices, please contact us:</p>
 							<div class="contact-info bg-light p-3 rounded">
-								<p class="mb-2"><strong>Email:</strong> khanyaolor123@gmail.com</p>
+								<p class="mb-2"><strong>Email:</strong> smartwaste2004@gmail.com</p>
 								<p class="mb-2"><strong>Phone:</strong> +63 9486187359</p>
-								<p class="mb-2"><strong>Address:</strong> Prk 24 Sampaguita St. Times Beach Davao City</p>
+								<p class="mb-2"><strong>Address:</strong> Brgy. Sto Nino Mintal Davao City</p>
 							</div>
 						</div>
 					</div>
