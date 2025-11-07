@@ -10,8 +10,7 @@ if (($_SESSION['role'] ?? '') !== 'resident') {
 
 $user_id = $_SESSION['user_id'] ?? null;
 
-// Optional filter by reference_type (e.g., 'schedule', 'collection')
-$allowed_filters = ['schedule', 'collection'];
+$allowed_filters = ['schedule', 'collection', 'chat', 'report', 'feedback'];
 $filterParam = $_SERVER['REQUEST_METHOD'] === 'POST' ? ($_POST['filter'] ?? null) : ($_GET['filter'] ?? null);
 $filter = ($filterParam && in_array($filterParam, $allowed_filters, true)) ? $filterParam : null;
 
@@ -87,13 +86,54 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 
 		/* Notifications page layout tweaks */
 		.notif-filters .nav { gap: .25rem; }
+		/* Allow filters to scroll horizontally on small screens and show a thin scrollbar for affordance */
+		.notif-filters .nav { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; padding-bottom: 6px; }
+		/* WebKit browsers - horizontal scrollbar */
+		.notif-filters .nav::-webkit-scrollbar { height: 8px; }
+		.notif-filters .nav::-webkit-scrollbar-track { background: transparent; }
+		.notif-filters .nav::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.12); border-radius: 6px; }
+		/* Firefox */
+		.notif-filters .nav { scrollbar-width: thin; scrollbar-color: rgba(15,23,42,0.12) transparent; }
 		.notif-actions .btn { white-space: nowrap; }
-		.notif-card.alert { border-radius: 14px; padding: 1rem 1rem; }
+		.notif-card.alert { border-radius: 14px; padding: 1rem 1rem; display: flex; gap: 12px; align-items: flex-start; }
 		.notif-card .badge { font-size: .75rem; }
+		.notif-icon { width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,0.04); flex-shrink:0; }
+		.notif-body { flex: 1 1 auto; }
+		/* allow text to wrap inside flex children (important for long messages) */
+		.notif-body { min-width: 0; }
+		.notif-title { font-size: 1rem; margin-bottom: 6px; font-weight: 600; color: #0b2740; }
+		.notif-preview { color: #07304a; line-height: 1.6; }
+		/* limit preview to 3 lines */
+		.notif-preview { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; text-overflow: ellipsis; }
+		/* small label next to title */
+		.notif-label { font-size: .7rem; padding: .18rem .45rem; border-radius: 8px; vertical-align: middle; }
+		.notif-meta { font-size: .85rem; color: #6c757d; }
+
+		/* Make the whole card clickable when wrapped in an anchor */
+		a.notif-link { display: block; border-radius: 14px; }
+		a.notif-link .notif-card { margin: 0; }
+		/* spacing between items */
+		.notif-item { margin-bottom: 0.85rem; }
+		/* expand toggle */
+		.notif-expand { color: #0b5ed7; display: inline-block; margin-top: 6px; }
+		/* when expanded, show full text */
+		.notif-preview.expanded { display: block; -webkit-line-clamp: unset; overflow: visible; }
+		@media (min-width: 768px) {
+			/* On desktop show full preview by default and allow wrapping */
+				.notif-preview { -webkit-line-clamp: unset; display: block; overflow: visible; white-space: normal; }
+			.notif-expand { display: none !important; }
+		}
+
+		/* remove any unexpected boxed background from the preview area */
+		.notif-card .notif-preview { background: transparent !important; padding: 0 !important; border-radius: 0 !important; margin: 0; }
+		/* show the expand toggle only on small screens to reduce clutter */
+		@media (min-width: 768px) {
+			.notif-expand { display: none !important; }
+		}
 
 		/* Mobile responsiveness */
 		@media (max-width: 767.98px) {
-			/* Stack header blocks and add breathing room */
+				/* Stack header blocks and add breathing room */
 			.notif-header { flex-direction: column !important; align-items: stretch !important; gap: .75rem; }
 			.notif-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
 			.notif-actions form { width: 100%; }
@@ -104,11 +144,31 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 			.notif-filters .nav::-webkit-scrollbar { display: none; }
 			.notif-filters .nav .nav-link { white-space: nowrap; padding: .4rem .75rem; }
 
-			/* Compact cards */
-			.notif-card.alert { padding: .875rem .9rem; }
-			.notif-card strong { font-size: 1.02rem; }
-			.notif-card .small { font-size: .86rem; }
+				/* Compact cards */
+				.notif-card.alert { padding: .875rem .9rem; }
+				.notif-card .notif-title { font-size: 1.02rem; }
+				.notif-card .notif-meta { font-size: .86rem; }
+
+				/* On small screens stack icon above text for better wrapping */
+				a.notif-link .notif-card { flex-direction: row; }
+				@media (max-width: 420px) {
+					a.notif-link .notif-card { flex-direction: column; align-items: stretch; }
+					.notif-icon { width: 48px; height: 48px; margin-bottom: 8px; }
+				}
 		}
+
+		/* Notifications list container spacing */
+		.notifications-list { padding-top: 6px; }
+
+		/* Subtle card shadow for separation */
+		.card .notif-card { box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04); }
+		/* Type specific icon backgrounds and colors */
+		.notif-type-chat .notif-icon { background: rgba(14,165,233,0.10); color: #0369a1; }
+		.notif-type-report .notif-icon { background: rgba(59,130,246,0.08); color: #1e40af; }
+		.notif-type-feedback .notif-icon { background: rgba(16,185,129,0.08); color: #047857; }
+		.notif-type-collection .notif-icon { background: rgba(99,102,241,0.06); color: #4f46e5; }
+		.notif-type-schedule .notif-icon { background: rgba(250,204,21,0.08); color: #a16207; }
+		.notif-type- .notif-icon, .notif-type-other .notif-icon { background: rgba(0,0,0,0.04); color: #374151; }
 		@media (max-width: 420px) {
 			.notif-actions { grid-template-columns: 1fr; }
 		}
@@ -133,6 +193,9 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 									<li class="nav-item"><a class="nav-link<?php echo $filter ? '' : ' active'; ?>" href="notifications.php">All</a></li>
 									<li class="nav-item"><a class="nav-link<?php echo $filter === 'schedule' ? ' active' : ''; ?>" href="notifications.php?filter=schedule">Schedule</a></li>
 									<li class="nav-item"><a class="nav-link<?php echo $filter === 'collection' ? ' active' : ''; ?>" href="notifications.php?filter=collection">Collections</a></li>
+									<li class="nav-item"><a class="nav-link<?php echo $filter === 'chat' ? ' active' : ''; ?>" href="notifications.php?filter=chat">Chat</a></li>
+									<li class="nav-item"><a class="nav-link<?php echo $filter === 'report' ? ' active' : ''; ?>" href="notifications.php?filter=report">Reports</a></li>
+									<li class="nav-item"><a class="nav-link<?php echo $filter === 'feedback' ? ' active' : ''; ?>" href="notifications.php?filter=feedback">Feedback</a></li>
 								</ul>
 							</div>
 						</div>
@@ -155,18 +218,91 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 					<div class="card">
 						<div class="card-body">
 							<?php if ($notifications->num_rows > 0): ?>
+								<div class="notifications-list">
 								<?php while ($n = $notifications->fetch_assoc()): ?>
-									<div class="alert notif-card alert-<?php echo $n['type'] === 'success' ? 'success' : ($n['type'] === 'warning' ? 'warning' : ($n['type'] === 'error' ? 'danger' : 'info')); ?> d-flex justify-content-between align-items-start">
-										<div>
-											<strong><?php echo e($n['title']); ?></strong>
-											<div class="small text-muted"><?php echo format_ph_date($n['created_at']); ?></div>
-											<div class="mt-1"><?php echo e($n['message']); ?></div>
+									<?php
+										$cardClass = 'alert-' . ($n['type'] === 'success' ? 'success' : ($n['type'] === 'warning' ? 'warning' : ($n['type'] === 'error' ? 'danger' : 'info')));
+										$isChat = (isset($n['reference_type']) && $n['reference_type'] === 'chat' && !empty($n['reference_id']));
+										$chatHref = '';
+										if ($isChat) {
+											// reference_id stores the chat_messages.id (see send logic). Resolve the other participant
+											try {
+												$stmtC = $conn->prepare("SELECT sender_id, receiver_id FROM chat_messages WHERE id = ? LIMIT 1");
+												$stmtC->bind_param('i', $n['reference_id']);
+												$stmtC->execute();
+												$cm = $stmtC->get_result()->fetch_assoc();
+												if ($cm) {
+													$other = (int)$cm['sender_id'] === (int)$user_id ? (int)$cm['receiver_id'] : (int)$cm['sender_id'];
+													if ($other) {
+														// If current user is a resident (this page), link to resident dashboard chat which expects ?authority=USER_ID
+														if (isset($_SESSION['role']) && $_SESSION['role'] === 'resident') {
+															$chatHref = BASE_URL . 'dashboard/resident/chat.php?authority=' . urlencode($other);
+														} else {
+															$chatHref = BASE_URL . 'chat.php?to=' . urlencode($other);
+														}
+													}
+												}
+												$stmtC->close();
+											} catch (Exception $e) { /* ignore */ }
+										}
+										$isReport = (isset($n['reference_type']) && $n['reference_type'] === 'report' && !empty($n['reference_id']));
+										$reportHref = $isReport ? (BASE_URL . 'dashboard/resident/reports.php?report=' . urlencode($n['reference_id'])) : '';
+										$isFeedback = (isset($n['reference_type']) && $n['reference_type'] === 'feedback' && !empty($n['reference_id']));
+										$feedbackHref = $isFeedback ? (BASE_URL . 'dashboard/resident/feedback.php?feedback=' . urlencode($n['reference_id'])) : '';
+									?>
+
+									<?php
+										// type-based wrapper and label
+										$typeClass = 'notif-type-' . ($n['reference_type'] ?? 'other');
+										$typeLabel = $n['reference_type'] ? ucfirst($n['reference_type']) : '';
+									?>
+									<div class="<?php echo e($typeClass); ?> notif-item">
+									<?php if ($isChat): ?>
+										<a href="<?php echo e($chatHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+									<?php elseif ($isReport): ?>
+										<a href="<?php echo e($reportHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+									<?php elseif ($isFeedback): ?>
+										<a href="<?php echo e($feedbackHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+									<?php endif; ?>
+
+									<div class="alert notif-card <?php echo $cardClass; ?>">
+										<div class="notif-icon text-center me-2">
+											<?php if ($n['reference_type'] === 'chat'): ?>
+												<i class="fas fa-comments fa-lg text-info"></i>
+											<?php elseif ($n['reference_type'] === 'report'): ?>
+												<i class="fas fa-file-alt fa-lg text-primary"></i>
+											<?php elseif ($n['reference_type'] === 'feedback'): ?>
+												<i class="fas fa-comment-dots fa-lg text-success"></i>
+											<?php else: ?>
+												<i class="fas fa-bell fa-lg text-secondary"></i>
+											<?php endif; ?>
 										</div>
-										<div>
-											<?php if ((int)$n['is_read'] === 0): ?><span class="badge bg-danger">New</span><?php endif; ?>
+										<div class="notif-body">
+											<div class="d-flex justify-content-between align-items-start">
+												<div>
+													<div class="notif-title">
+														<?php echo e($n['title']); ?>
+														<?php if (!empty($typeLabel)): ?>
+															<span class="notif-label bg-white text-muted border ms-2"><?php echo e($typeLabel); ?></span>
+														<?php endif; ?>
+													</div>
+													<div class="notif-meta"><?php echo format_ph_date($n['created_at']); ?></div>
+												</div>
+												<div>
+													<?php if ((int)$n['is_read'] === 0): ?><span class="badge bg-danger">New</span><?php endif; ?>
+												</div>
+											</div>
+											<div id="notif-preview-<?php echo e($n['id']); ?>" class="mt-2 notif-preview"><?php echo e($n['message']); ?></div>
+											<button type="button" class="btn btn-link btn-sm p-0 notif-expand" data-target="notif-preview-<?php echo e($n['id']); ?>">Show more</button>
 										</div>
 									</div>
+
+									<?php if ($isChat || $isReport || $isFeedback): ?>
+										</a>
+									<?php endif; ?>
+									</div>
 								<?php endwhile; ?>
+								</div>
 							<?php else: ?>
 								<p class="text-muted mb-0 text-center">No notifications yet.</p>
 							<?php endif; ?>
@@ -182,6 +318,22 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 		function confirmDeleteAll() {
 			return confirm('Are you sure you want to delete all notifications? This action cannot be undone.');
 		}
+
+		// Expand/collapse long previews (works on mobile)
+		document.addEventListener('click', function(e) {
+			if (e.target && e.target.classList && e.target.classList.contains('notif-expand')) {
+				var targetId = e.target.getAttribute('data-target');
+				var el = document.getElementById(targetId);
+				if (!el) return;
+				if (el.classList.contains('expanded')) {
+					el.classList.remove('expanded');
+					e.target.textContent = 'Show more';
+				} else {
+					el.classList.add('expanded');
+					e.target.textContent = 'Show less';
+				}
+			}
+		});
 	</script>
 </body>
 </html>

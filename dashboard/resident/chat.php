@@ -14,6 +14,10 @@ $success_message = '';
 $error_message = '';
 
 // Handle message submission
+// Check if the request is an AJAX call
+function isAjaxRequest() {
+    return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'send_message') {
         $receiver_id = $_POST['receiver_id'] ?? null;
@@ -30,6 +34,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 if ($stmt->execute()) {
                     $success_message = 'Message sent successfully.';
                     $chat_id = $stmt->insert_id;
+                    // Fetch the inserted message so we can return it for AJAX callers
+                    $res = $conn->prepare("SELECT cm.*, u.first_name, u.last_name, u.role FROM chat_messages cm JOIN users u ON cm.sender_id = u.id WHERE cm.id = ? LIMIT 1");
+                    if ($res) {
+                        $res->bind_param('i', $chat_id);
+                        $res->execute();
+                        $inserted_msg = $res->get_result()->fetch_assoc();
+                        $res->close();
+                    } else {
+                        $inserted_msg = null;
+                    }
                     // Send push notification to the receiver (authority)
                     try {
                         $push = new PushNotifications($conn);
@@ -74,6 +88,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         } else {
             $error_message = 'Please select a recipient and enter a message.';
         }
+        // If this is an AJAX (XHR) request, respond with JSON and exit so the browser
+        // doesn't create a POST navigation history that leads to "resubmit the form" on reload.
+        if (isAjaxRequest()) {
+            header('Content-Type: application/json');
+            if (!empty($inserted_msg)) {
+                echo json_encode(['ok' => true, 'message' => $inserted_msg]);
+            } else {
+                echo json_encode(['ok' => !empty($success_message), 'error' => $error_message]);
+            }
+            exit;
+        }
     } elseif ($_POST['action'] === 'clear_chat') {
         $authority_id = (int)($_POST['authority_id'] ?? 0);
         if ($authority_id > 0) {
@@ -94,6 +119,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             }
         } else {
             $error_message = 'Invalid authority selected.';
+        }
+        // Return JSON for AJAX clear requests
+        if (isAjaxRequest()) {
+            header('Content-Type: application/json');
+            echo json_encode(['ok' => !empty($success_message), 'error' => $error_message]);
+            exit;
         }
     }
 }
@@ -455,10 +486,29 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
             window.location.href = '?authority=' + authorityId;
         }
 
+        // Clear chat via AJAX to avoid POST navigation
         function clearChat() {
-            if (confirm('Are you sure you want to clear this chat? This action cannot be undone.')) {
-                document.getElementById('clearChatForm')?.submit();
-            }
+            if (!confirm('Are you sure you want to clear this chat? This action cannot be undone.')) return;
+            const f = document.getElementById('clearChatForm');
+            if (!f) return;
+            const data = new FormData(f);
+            fetch(window.location.href, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                body: data,
+                credentials: 'same-origin'
+            }).then(r => r.json()).then(res => {
+                if (res.ok) {
+                    // Remove chat messages from UI
+                    const chatMessages = document.getElementById('chatMessages');
+                    if (chatMessages) chatMessages.innerHTML = '<div class="text-center text-muted"><i class="fas fa-comments fa-3x mb-3"></i><p>Chat cleared.</p></div>';
+                } else {
+                    alert(res.error || 'Failed to clear chat');
+                }
+            }).catch(err => {
+                console.error(err);
+                alert('Error clearing chat');
+            });
         }
 
         // Auto-scroll to bottom of chat
@@ -473,6 +523,55 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
         document.addEventListener('DOMContentLoaded', function() {
             scrollToBottom();
         });
+
+        // Intercept chat form and submit via AJAX to avoid POST reload/resubmit
+        (function() {
+            const chatForm = document.getElementById('chatForm');
+            if (!chatForm) return;
+
+            chatForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const formData = new FormData(chatForm);
+                // use fetch to submit to the same URL (preserves query param for authority)
+                fetch(window.location.href, {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' },
+                    body: formData,
+                    credentials: 'same-origin'
+                }).then(r => r.json()).then(res => {
+                    if (!res) return;
+                    if (res.ok && res.message) {
+                        // Append message bubble
+                        const chatMessages = document.getElementById('chatMessages');
+                        if (chatMessages) {
+                            const msg = res.message;
+                            const el = document.createElement('div');
+                            el.className = 'message sent';
+                            const inner = document.createElement('div');
+                            inner.className = 'message-content';
+                            const text = document.createElement('div');
+                            text.textContent = msg.message || msg.message;
+                            const time = document.createElement('div');
+                            time.className = 'message-time';
+                            time.textContent = msg.created_at ? msg.created_at : '';
+                            inner.appendChild(text);
+                            inner.appendChild(time);
+                            el.appendChild(inner);
+                            chatMessages.appendChild(el);
+                            scrollToBottom();
+                        }
+                        // clear input
+                        const input = chatForm.querySelector('input[name="message"]');
+                        if (input) input.value = '';
+                    } else {
+                        alert(res.error || 'Failed to send message');
+                    }
+                }).catch(err => {
+                    console.error(err);
+                    alert('Error sending message');
+                });
+            });
+        })();
 
         // Auto-refresh chat every 30 seconds
         setInterval(function() {

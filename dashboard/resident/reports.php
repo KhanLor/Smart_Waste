@@ -646,5 +646,15 @@ if ($reports->num_rows > 0) {
             }
         }
     </script>
+        <?php if (!empty($_GET['report'])): ?>
+        <script>
+            document.addEventListener('DOMContentLoaded', function(){
+                try {
+                    var rid = <?php echo (int)$_GET['report']; ?>;
+                    if (rid > 0 && typeof viewReport === 'function') viewReport(rid);
+                } catch (e) { console.error(e); }
+            });
+        </script>
+        <?php endif; ?>
 </body>
 </html>

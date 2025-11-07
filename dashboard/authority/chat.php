@@ -13,7 +13,7 @@ $user_id = $_SESSION['user_id'] ?? null;
 $success_message = '';
 $error_message = '';
 
-// Handle message sending
+// Handle message sending (Post/Redirect/Get to avoid resubmit duplicates)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'send_message') {
         $receiver_id = $_POST['receiver_id'] ?? null;
@@ -28,7 +28,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->bind_param("iis", $user_id, $receiver_id, $message);
                 
                 if ($stmt->execute()) {
-                    $success_message = 'Message sent successfully.';
                     $chat_id = $stmt->insert_id;
                     // Send push notification to the receiver (resident)
                     try {
@@ -65,6 +64,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             $stmtN->close();
                         }
                     } catch (Exception $ex) { /* swallow notification errors */ }
+
+                    // Redirect to avoid form resubmission (PRG pattern)
+                    $redirectUrl = BASE_URL . 'dashboard/authority/chat.php?resident=' . urlencode($receiver_id) . '&sent=1';
+                    header('Location: ' . $redirectUrl);
+                    exit;
                 } else {
                     throw new Exception('Failed to send message.');
                 }
@@ -77,15 +81,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     } elseif ($_POST['action'] === 'clear_chat') {
         $resident_id = (int)($_POST['resident_id'] ?? 0);
         if ($resident_id > 0) {
-            try {
-                $stmt = $conn->prepare("
-                    DELETE FROM chat_messages
-                    WHERE (sender_id = ? AND receiver_id = ?)
-                       OR (sender_id = ? AND receiver_id = ?)
-                ");
+                try {
+                $stmt = $conn->prepare("DELETE FROM chat_messages WHERE (sender_id = ? AND receiver_id = ?) OR (sender_id = ? AND receiver_id = ?)");
                 $stmt->bind_param("iiii", $user_id, $resident_id, $resident_id, $user_id);
                 if ($stmt->execute()) {
-                    $success_message = 'Chat cleared successfully.';
+                    // Redirect after clearing to avoid resubmit
+                    $redirectUrl = BASE_URL . 'dashboard/authority/chat.php?resident=' . urlencode($resident_id) . '&cleared=1';
+                    header('Location: ' . $redirectUrl);
+                    exit;
                 } else {
                     throw new Exception('Failed to clear chat.');
                 }
@@ -96,6 +99,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $error_message = 'Invalid resident selected.';
         }
     }
+}
+
+// Show success messages when redirected after PRG
+if (isset($_GET['sent']) && $_GET['sent'] == '1') {
+    $success_message = 'Message sent successfully.';
+}
+if (isset($_GET['cleared']) && $_GET['cleared'] == '1') {
+    $success_message = 'Chat cleared successfully.';
 }
 
 // Get user data

@@ -389,7 +389,7 @@ $feedback_history = $stmt->get_result();
                                 <div class="card-body" style="max-height: 500px; overflow-y: auto;">
                                     <?php if ($feedback_history->num_rows > 0): ?>
                                         <?php while ($feedback = $feedback_history->fetch_assoc()): ?>
-                                            <div class="feedback-card p-3 mb-3 d-flex <?php echo $feedback['feedback_type']; ?>">
+                                            <div id="feedback-<?php echo (int)$feedback['id']; ?>" class="feedback-card p-3 mb-3 d-flex <?php echo $feedback['feedback_type']; ?>">
                                                 <div class="me-3">
                                                     <div class="feedback-type-icon <?php echo $feedback['feedback_type']; ?>">
                                                         <i class="fas fa-<?php echo $feedback['feedback_type'] === 'suggestion' ? 'lightbulb' : ($feedback['feedback_type'] === 'complaint' ? 'exclamation-triangle' : ($feedback['feedback_type'] === 'appreciation' ? 'heart' : 'bug')); ?>"></i>
@@ -504,5 +504,24 @@ $feedback_history = $stmt->get_result();
             form.className = 'feedback-' + this.value;
         });
     </script>
+    <?php if (!empty($_GET['feedback'])): ?>
+    <script>
+        document.addEventListener('DOMContentLoaded', function(){
+            try {
+                var fid = <?php echo (int)$_GET['feedback']; ?>;
+                if (fid > 0) {
+                    var el = document.getElementById('feedback-' + fid);
+                    if (el) {
+                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        el.style.transition = 'box-shadow 0.3s, transform 0.3s';
+                        el.style.boxShadow = '0 8px 30px rgba(2,6,23,0.12)';
+                        el.style.transform = 'translateY(-2px)';
+                        setTimeout(function(){ el.style.boxShadow = ''; el.style.transform = ''; }, 3000);
+                    }
+                }
+            } catch (e) { console.error(e); }
+        });
+    </script>
+    <?php endif; ?>
 </body>
 </html>
