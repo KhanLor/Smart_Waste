@@ -232,6 +232,7 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
             border: none;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            overflow: visible; /* allow dropdowns to extend outside cards */
         }
         .nav-link {
             border-radius: 10px;
@@ -245,6 +246,7 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
         .collector-card {
             border-left: 4px solid #17a2b8;
             transition: transform 0.2s;
+            overflow: visible;
         }
         .collector-card:hover {
             transform: translateY(-2px);
@@ -274,6 +276,10 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
             color: white;
             font-size: 1.5rem;
         }
+
+        /* dropdown clarity */
+        .dropdown .dropdown-toggle { background:#f4f6f8; border:1px solid rgba(0,0,0,0.06); padding:0.35rem 0.5rem; border-radius:8px; color:#333; }
+        .dropdown-menu { z-index:3000; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
     </style>
 </head>
 <body class="role-authority">
@@ -293,11 +299,7 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
                             <h2 class="mb-1">Collectors Management</h2>
                             <p class="text-muted mb-0">Manage waste collection staff and assignments</p>
                         </div>
-                        <div>
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCollectorModal">
-                                <i class="fas fa-user-plus me-2"></i>Add Collector
-                            </button>
-                        </div>
+                        <!-- Add Collector button removed per request -->
                     </div>
 
                     <!-- Messages -->
@@ -377,11 +379,11 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
                                                     <h6 class="mb-1"><?php echo e($collector['first_name'] . ' ' . $collector['last_name']); ?></h6>
                                                     <small class="text-muted">@<?php echo e($collector['username']); ?></small>
                                                 </div>
-                                                <div class="dropdown">
-                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                                                        <i class="fas fa-ellipsis-v"></i>
-                                                    </button>
-                                                    <ul class="dropdown-menu">
+                                                        <div class="dropdown">
+                                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                <i class="fas fa-ellipsis-v"></i>
+                                                            </button>
+                                                            <ul class="dropdown-menu dropdown-menu-end">
                                                         <li><a class="dropdown-item" href="#" onclick="editCollector(<?php echo $collector['id']; ?>)">
                                                             <i class="fas fa-edit me-2"></i>Edit
                                                         </a></li>
@@ -441,9 +443,7 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
                                         <i class="fas fa-users fa-4x text-muted mb-4"></i>
                                         <h4>No Collectors Found</h4>
                                         <p class="text-muted">No collectors match your search criteria.</p>
-                                        <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addCollectorModal">
-                                            <i class="fas fa-user-plus me-2"></i>Add First Collector
-                                        </button>
+                                        <!-- Add First Collector button removed -->
                                     </div>
                                 </div>
                             </div>
@@ -479,68 +479,7 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
         </div>
     </div>
 
-    <!-- Add Collector Modal -->
-    <div class="modal fade" id="addCollectorModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Add New Collector</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <form method="POST" id="addCollectorForm">
-                    <div class="modal-body">
-                        <input type="hidden" name="action" value="add_collector">
-                        
-                        <div class="mb-3">
-                            <label for="username" class="form-label">Username <span class="text-danger">*</span></label>
-                            <input type="text" class="form-control" id="username" name="username" required>
-                        </div>
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <label for="first_name" class="form-label">First Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="first_name" name="first_name" required>
-                            </div>
-                            <div class="col-md-6 mb-3">
-                                <label for="last_name" class="form-label">Last Name <span class="text-danger">*</span></label>
-                                <input type="text" class="form-control" id="last_name" name="last_name" required>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="middle_name" class="form-label">Middle Name</label>
-                            <input type="text" class="form-control" id="middle_name" name="middle_name">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
-                            <input type="email" class="form-control" id="email" name="email" required>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="phone" class="form-label">Phone</label>
-                            <input type="tel" class="form-control" id="phone" name="phone">
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="address" class="form-label">Address <span class="text-danger">*</span></label>
-                            <textarea class="form-control" id="address" name="address" rows="3" required></textarea>
-                        </div>
-                        
-                        <div class="mb-3">
-                            <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
-                            <input type="password" class="form-control" id="password" name="password" required>
-                            <div class="form-text">Password must be at least 6 characters long.</div>
-                        </div>
-                    </div>
-                    <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="submit" class="btn btn-primary">Add Collector</button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
+    <!-- Add Collector UI removed -->
 
     <!-- Edit Collector Modal -->
     <div class="modal fade" id="editCollectorModal" tabindex="-1">

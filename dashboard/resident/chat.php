@@ -18,7 +18,7 @@ $error_message = '';
 function isAjaxRequest() {
     return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
 }
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'send_message') {
         $receiver_id = $_POST['receiver_id'] ?? null;
         $message = trim($_POST['message'] ?? '');
@@ -126,6 +126,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             echo json_encode(['ok' => !empty($success_message), 'error' => $error_message]);
             exit;
         }
+    } elseif ($_POST['action'] === 'edit_message') {
+        // AJAX: edit a sent chat message
+        $message_id = (int)($_POST['message_id'] ?? 0);
+        $new_message = trim($_POST['message'] ?? '');
+        header('Content-Type: application/json');
+        if ($message_id <= 0 || $new_message === '') {
+            echo json_encode(['ok' => false, 'error' => 'Invalid input']); exit;
+        }
+        // Ensure the current user is the sender and message isn't unsent
+        $chk = $conn->prepare('SELECT sender_id, is_unsent FROM chat_messages WHERE id = ? LIMIT 1');
+        $chk->bind_param('i', $message_id);
+        $chk->execute();
+        $r = $chk->get_result()->fetch_assoc();
+        $chk->close();
+        if (!$r || (int)$r['sender_id'] !== (int)$user_id) {
+            echo json_encode(['ok' => false, 'error' => 'Permission denied']); exit;
+        }
+        if (isset($r['is_unsent']) && (int)$r['is_unsent'] === 1) {
+            echo json_encode(['ok' => false, 'error' => 'Cannot edit an unsent message']); exit;
+        }
+        $stmt = $conn->prepare('UPDATE chat_messages SET message = ? WHERE id = ? AND sender_id = ?');
+        $stmt->bind_param('sii', $new_message, $message_id, $user_id);
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['ok' => (bool)$ok]);
+        exit;
+    } elseif ($_POST['action'] === 'unsend_message') {
+        // AJAX: unsend (soft-delete) a message
+        $message_id = (int)($_POST['message_id'] ?? 0);
+        header('Content-Type: application/json');
+        if ($message_id <= 0) { echo json_encode(['ok' => false, 'error' => 'Invalid input']); exit; }
+        $chk = $conn->prepare('SELECT sender_id FROM chat_messages WHERE id = ? LIMIT 1');
+        $chk->bind_param('i', $message_id);
+        $chk->execute();
+        $r = $chk->get_result()->fetch_assoc();
+        $chk->close();
+        if (!$r || (int)$r['sender_id'] !== (int)$user_id) {
+            echo json_encode(['ok' => false, 'error' => 'Permission denied']); exit;
+        }
+        // Try to flag `is_unsent` if column exists, otherwise replace message text
+        $colChk = $conn->prepare('SELECT COUNT(*) AS cnt FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ? AND COLUMN_NAME = ?');
+        $table = 'chat_messages'; $col = 'is_unsent';
+        $colChk->bind_param('sss', $DB_NAME, $table, $col);
+        $colChk->execute();
+        $colRes = $colChk->get_result()->fetch_assoc();
+        $colChk->close();
+        if ((int)($colRes['cnt'] ?? 0) > 0) {
+            $stmt = $conn->prepare('UPDATE chat_messages SET is_unsent = 1 WHERE id = ? AND sender_id = ?');
+            $stmt->bind_param('ii', $message_id, $user_id);
+        } else {
+            $placeholder = 'Message unsent.';
+            $stmt = $conn->prepare('UPDATE chat_messages SET message = ? WHERE id = ? AND sender_id = ?');
+            $stmt->bind_param('sii', $placeholder, $message_id, $user_id);
+        }
+        $ok = $stmt->execute();
+        $stmt->close();
+        echo json_encode(['ok' => (bool)$ok]);
+        exit;
     }
 }
 
@@ -202,6 +260,14 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
     </script>
     <script src="../../assets/js/register_sw.js"></script>
     <style>
+        :root{
+            --bubble-sent: #0d6efd; /* primary blue for clarity */
+            --bubble-received-bg: #ffffff;
+            --bubble-received-border: #e9ecef;
+            --bubble-unsent-bg: #f1f3f5; /* muted gray */
+            --bubble-unsent-color: #6c757d;
+            --bubble-text-on-primary: #ffffff;
+        }
         .sidebar {
             min-height: 100vh;
             background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
@@ -245,19 +311,35 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
         .message-content {
             max-width: 70%;
             padding: 10px 15px;
+            /* leave room on the right for action menu so it doesn't overlap text */
+            padding-right: 56px;
             border-radius: 18px;
             position: relative;
         }
+    .msg-actions { position: absolute; top: 6px; right: -18px; width:36px; height:36px; }
+    .msg-actions .btn { width:100%; height:100%; padding:0; display:flex; align-items:center; justify-content:center; background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
+    .msg-actions .btn .fas { margin:0; }
+    .msg-actions .dropdown-menu { z-index:4000; }
+        /* sent (current user) uses a clear single-color bubble for contrast */
         .message.sent .message-content {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
+            background: var(--bubble-sent);
+            color: var(--bubble-text-on-primary);
             border-bottom-right-radius: 5px;
+            box-shadow: 0 1px 0 rgba(0,0,0,0.04) inset;
         }
         .message.received .message-content {
-            background: white;
+            background: var(--bubble-received-bg);
             color: #333;
-            border: 1px solid #e9ecef;
+            border: 1px solid var(--bubble-received-border);
             border-bottom-left-radius: 5px;
+        }
+
+        /* unsent (soft-deleted) messages: neutral, muted and italic */
+        .message-content.msg-unsent {
+            background: var(--bubble-unsent-bg) !important;
+            color: var(--bubble-unsent-color) !important;
+            font-style: italic;
+            border: 1px solid #e6e9ec;
         }
         .message-time {
             font-size: 0.75rem;
@@ -429,11 +511,30 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
                                         <?php if ($chat_messages && $chat_messages->num_rows > 0): ?>
                                             <?php while ($message = $chat_messages->fetch_assoc()): ?>
                                                 <div class="message <?php echo $message['sender_id'] == $user_id ? 'sent' : 'received'; ?>">
-                                                    <div class="message-content">
-                                                        <div><?php echo e($message['message']); ?></div>
+                                                        <?php $is_unsent = (isset($message['is_unsent']) && (int)$message['is_unsent'] === 1); ?>
+                                                        <div class="message-content <?php echo $is_unsent ? 'msg-unsent' : ''; ?>" data-chat-msg-id="<?php echo (int)$message['id']; ?>">
+                                                        <?php
+                                                            // If the chat message has been marked unsent (soft delete), show placeholder
+                                                            $display_message = $message['message'];
+                                                            if (isset($message['is_unsent']) && (int)$message['is_unsent'] === 1) {
+                                                                $display_message = 'Message unsent.';
+                                                            }
+                                                        ?>
+                                                        <div><?php echo e($display_message); ?></div>
                                                         <div class="message-time">
                                                             <?php echo format_ph_date($message['created_at']); ?>
                                                         </div>
+                                                        <?php if ($message['sender_id'] == $user_id && !$is_unsent): ?>
+                                                            <div class="dropdown msg-actions">
+                                                                <button class="btn btn-sm btn-light dropdown-toggle" type="button" id="msgActions<?php echo (int)$message['id']; ?>" data-bs-toggle="dropdown" aria-expanded="false">
+                                                                    <i class="fas fa-ellipsis-v"></i>
+                                                                </button>
+                                                                <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="msgActions<?php echo (int)$message['id']; ?>">
+                                                                    <li><a class="dropdown-item edit-action" href="#" data-msg-id="<?php echo (int)$message['id']; ?>">Edit</a></li>
+                                                                    <li><a class="dropdown-item text-danger unsend-action" href="#" data-msg-id="<?php echo (int)$message['id']; ?>">Unsend</a></li>
+                                                                </ul>
+                                                            </div>
+                                                        <?php endif; ?>
                                                     </div>
                                                 </div>
                                             <?php endwhile; ?>
@@ -570,6 +671,58 @@ $unread_count = $stmt->get_result()->fetch_assoc()['unread_count'];
                     console.error(err);
                     alert('Error sending message');
                 });
+            });
+        })();
+
+        // Edit / Unsend handlers (event delegation)
+        (function() {
+            const chatMessages = document.getElementById('chatMessages');
+            if (!chatMessages) return;
+            chatMessages.addEventListener('click', function(e) {
+                const editLink = e.target.closest('.edit-action');
+                const unsendLink = e.target.closest('.unsend-action');
+                if (editLink) {
+                    const container = editLink.closest('.message-content');
+                    const msgId = container ? container.getAttribute('data-chat-msg-id') : null;
+                    if (!msgId) return;
+                    const old = container.querySelector('div');
+                    const currentText = old ? old.textContent.trim() : '';
+                    const newText = prompt('Edit message:', currentText);
+                    if (newText === null) return;
+                    const body = newText.trim();
+                    if (!body) return alert('Message cannot be empty');
+                    const form = new FormData();
+                    form.append('action', 'edit_message');
+                    form.append('message_id', msgId);
+                    form.append('message', body);
+                    fetch(window.location.href, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: form, credentials: 'same-origin' })
+                        .then(r => r.json()).then(res => {
+                            if (res && res.ok) {
+                                // update UI immediately
+                                if (old) old.textContent = body + (res.edited_at ? ' (edited)' : '');
+                            } else {
+                                alert(res.error || 'Failed to edit');
+                            }
+                        }).catch(err => { console.error(err); alert('Error editing message'); });
+                } else if (unsendLink) {
+                    const container = unsendLink.closest('.message-content');
+                    const msgId = container ? container.getAttribute('data-chat-msg-id') : null;
+                    if (!msgId) return;
+                    if (!confirm('Unsend this message?')) return;
+                    const form = new FormData();
+                    form.append('action', 'unsend_message');
+                    form.append('message_id', msgId);
+                    fetch(window.location.href, { method: 'POST', headers: { 'X-Requested-With': 'XMLHttpRequest' }, body: form, credentials: 'same-origin' })
+                        .then(r => r.json()).then(res => {
+                            if (res && res.ok) {
+                                // update UI
+                                const old = container.querySelector('div');
+                                if (old) old.textContent = 'Message unsent.';
+                            } else {
+                                alert(res.error || 'Failed to unsend');
+                            }
+                        }).catch(err => { console.error(err); alert('Error unsending message'); });
+                }
             });
         })();
 

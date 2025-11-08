@@ -201,6 +201,8 @@ $total_reports = $stmt->get_result()->fetch_assoc()['total_reports'];
             border: none;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            /* allow dropdowns and other popovers to overflow visible */
+            overflow: visible;
         }
         .nav-link {
             border-radius: 10px;
@@ -214,6 +216,8 @@ $total_reports = $stmt->get_result()->fetch_assoc()['total_reports'];
         .resident-card {
             border-left: 4px solid #28a745;
             transition: transform 0.2s;
+            /* ensure action menu isn't clipped by the card */
+            overflow: visible;
         }
         .resident-card:hover {
             transform: translateY(-2px);
@@ -246,7 +250,45 @@ $total_reports = $stmt->get_result()->fetch_assoc()['total_reports'];
         .points-badge {
             background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
             color: #000;
-            font-weight: bold;
+            font-weight: 700;
+            display: inline-block;
+            padding: 0.35rem 0.6rem;
+            border-radius: 999px;
+            font-size: 0.9rem;
+        }
+
+        /* Improve dropdown/action clarity */
+        .dropdown .dropdown-toggle {
+            background: #f4f6f8;
+            border: 1px solid rgba(0,0,0,0.06);
+            padding: 0.35rem 0.5rem;
+            border-radius: 8px;
+            color: #333;
+        }
+        .dropdown .dropdown-toggle:focus {
+            box-shadow: none;
+        }
+        .dropdown-menu {
+            z-index: 3000; /* ensure it appears above nearby cards */
+            min-width: 10rem;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+        }
+        .dropdown-menu .dropdown-item i {
+            width: 18px;
+            text-align: center;
+        }
+
+        /* Resident details modal improvements */
+        #residentDetailsBody img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 6px;
+            border: 1px solid #e9eef0;
+        }
+        #residentDetailsBody .badge.bg-success {
+            font-weight: 700;
+            border-radius: 6px;
+            padding: 0.35rem 0.6rem;
         }
     </style>
 </head>
@@ -363,18 +405,24 @@ $total_reports = $stmt->get_result()->fetch_assoc()['total_reports'];
                                     <div class="card resident-card">
                                         <div class="card-body">
                                             <div class="d-flex align-items-start mb-3">
-                                                <div class="resident-avatar me-3">
-                                                    <i class="fas fa-user"></i>
-                                                </div>
+                                                <?php if (!empty($resident['profile_image']) && file_exists(__DIR__ . '/../../' . $resident['profile_image'])): ?>
+                                                    <div class="me-3" style="width:60px;height:60px;border-radius:50%;overflow:hidden;flex-shrink:0;">
+                                                        <img src="<?php echo BASE_URL . $resident['profile_image']; ?>" alt="<?php echo e($resident['first_name']); ?>" style="width:100%;height:100%;object-fit:cover;display:block;" />
+                                                    </div>
+                                                <?php else: ?>
+                                                    <div class="resident-avatar me-3">
+                                                        <i class="fas fa-user"></i>
+                                                    </div>
+                                                <?php endif; ?>
                                                 <div class="flex-grow-1">
                                                     <h6 class="mb-1"><?php echo e($resident['first_name'] . ' ' . $resident['last_name']); ?></h6>
                                                     <small class="text-muted">@<?php echo e($resident['username']); ?></small>
                                                 </div>
                                                 <div class="dropdown">
-                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                                         <i class="fas fa-ellipsis-v"></i>
                                                     </button>
-                                                    <ul class="dropdown-menu">
+                                                    <ul class="dropdown-menu dropdown-menu-end">
                                                         <li><a class="dropdown-item" href="#" onclick="editResident(<?php echo $resident['id']; ?>)">
                                                             <i class="fas fa-edit me-2"></i>Edit
                                                         </a></li>

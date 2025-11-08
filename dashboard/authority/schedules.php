@@ -357,6 +357,8 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
             border: none;
             border-radius: 15px;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            /* allow dropdowns/popovers to overflow card boundaries */
+            overflow: visible;
         }
         .nav-link {
             border-radius: 10px;
@@ -370,6 +372,7 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
         .schedule-card {
             border-left: 4px solid #17a2b8;
             transition: transform 0.2s;
+            overflow: visible;
         }
         .schedule-card:hover {
             transform: translateY(-2px);
@@ -419,6 +422,21 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
             font-size: 11px;
             pointer-events: none; /* decorative */
         }
+        /* Dropdown and action clarity */
+        .dropdown .dropdown-toggle {
+            background: #f4f6f8;
+            border: 1px solid rgba(0,0,0,0.06);
+            padding: 0.35rem 0.5rem;
+            border-radius: 8px;
+            color: #333;
+        }
+        .dropdown .dropdown-toggle:focus { box-shadow:none; }
+        .dropdown-menu {
+            z-index: 3000; /* ensure menu sits above cards */
+            min-width: 10rem;
+            box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+        }
+        .card-title { font-weight:600; }
         @media (max-width: 576px) {
             .notif-badge { right: 44px; top: 8px; min-width: 18px; height: 18px; font-size: 10px; }
             .dropdown .btn { padding: 0.25rem 0.4rem; }
@@ -556,10 +574,10 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                                             <div class="d-flex justify-content-between align-items-start mb-2">
                                                 <h6 class="card-title mb-0"><?php echo e($schedule['street_name']); ?></h6>
                                                 <div class="dropdown">
-                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
                                                         <i class="fas fa-ellipsis-v"></i>
                                                     </button>
-                                                    <ul class="dropdown-menu">
+                                                    <ul class="dropdown-menu dropdown-menu-end">
                                                         <li><a class="dropdown-item" href="#" onclick="viewScheduleActivity(<?php echo (int)$schedule['id']; ?>)">
                                                             <i class="fas fa-bell me-2"></i>View Activity
                                                         </a></li>

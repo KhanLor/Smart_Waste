@@ -83,6 +83,7 @@ $recent_conversations = $stmt->get_result();
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 	<link rel="stylesheet" href="../../assets/css/dashboard.css">
 	<style>
+		:root{ --bubble-sent: #0d6efd; --bubble-received-bg: #ffffff; --bubble-received-border: #e9ecef; --bubble-unsent-bg: #f1f3f5; --bubble-unsent-color: #6c757d; --bubble-text-on-primary: #ffffff; }
 		.sidebar { min-height: 100vh; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); }
 		.card { border: none; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
 		.nav-link { border-radius: 10px; margin: 2px 0; transition: all 0.3s; }
@@ -93,8 +94,9 @@ $recent_conversations = $stmt->get_result();
 		.message.sent { justify-content: flex-end; }
 		.message.received { justify-content: flex-start; }
 		.message-content { max-width: 70%; padding: 10px 15px; border-radius: 18px; position: relative; }
-		.message.sent .message-content { background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); color: white; border-bottom-right-radius: 5px; }
-		.message.received .message-content { background: white; color: #333; border: 1px solid #e9ecef; border-bottom-left-radius: 5px; }
+		.message.sent .message-content { background: var(--bubble-sent); color: var(--bubble-text-on-primary); border-bottom-right-radius: 5px; box-shadow: 0 1px 0 rgba(0,0,0,0.04) inset; }
+		.message.received .message-content { background: var(--bubble-received-bg); color: #333; border: 1px solid var(--bubble-received-border); border-bottom-left-radius: 5px; }
+		.message-content.msg-unsent { background: var(--bubble-unsent-bg) !important; color: var(--bubble-unsent-color) !important; font-style: italic; border: 1px solid #e6e9ec; }
 		.message-time { font-size: 0.75rem; color: #6c757d; margin-top: 5px; }
 		.message.sent .message-time { text-align: right; }
 		.resident-item { padding: 15px; border-bottom: 1px solid #e9ecef; cursor: pointer; transition: background-color 0.2s; }

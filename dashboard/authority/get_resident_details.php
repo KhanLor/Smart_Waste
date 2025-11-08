@@ -16,8 +16,8 @@ if (!$resident_id) {
     exit;
 }
 
-// Fetch resident basic info
- $stmt = $conn->prepare("SELECT id, first_name, last_name, email, phone, address, eco_points, created_at FROM users WHERE id = ? AND role = 'resident'");
+ // Fetch resident basic info (include profile_image)
+ $stmt = $conn->prepare("SELECT id, first_name, last_name, email, phone, address, eco_points, profile_image, created_at FROM users WHERE id = ? AND role = 'resident'");
  if (!$stmt) {
      http_response_code(500);
      echo 'DB prepare error: ' . $conn->error;
@@ -37,9 +37,15 @@ ob_start();
 ?>
 <div class="row">
     <div class="col-md-4 text-center">
-        <div style="width:120px;height:120px;border-radius:12px;background:#f5f7fa;display:inline-flex;align-items:center;justify-content:center;font-size:36px;color:#666;">
-            <?php echo htmlspecialchars(substr($resident['first_name'],0,1) . substr($resident['last_name'],0,1)); ?>
-        </div>
+        <?php if (!empty($resident['profile_image']) && file_exists(__DIR__ . '/../../' . $resident['profile_image'])): ?>
+            <div style="width:120px;height:120px;border-radius:50%;overflow:hidden;display:inline-block;">
+                <img src="<?php echo BASE_URL . $resident['profile_image']; ?>" alt="<?php echo htmlspecialchars($resident['first_name']); ?>" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;" />
+            </div>
+        <?php else: ?>
+            <div style="width:120px;height:120px;border-radius:50%;background:#f5f7fa;display:inline-flex;align-items:center;justify-content:center;font-size:36px;color:#666;">
+                <?php echo htmlspecialchars(substr($resident['first_name'],0,1) . substr($resident['last_name'],0,1)); ?>
+            </div>
+        <?php endif; ?>
         <h5 class="mt-3"><?php echo htmlspecialchars($resident['first_name'] . ' ' . $resident['last_name']); ?></h5>
         <p class="text-muted mb-1"><?php echo htmlspecialchars($resident['email']); ?></p>
         <?php if ($resident['phone']): ?><p class="text-muted"><?php echo htmlspecialchars($resident['phone']); ?></p><?php endif; ?>

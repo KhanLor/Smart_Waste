@@ -31,6 +31,16 @@ $conversationId = 'u_' . $a . '_u_' . $b;
 		.msg  { padding:.5rem .75rem; border-radius:10px; display:inline-block; max-width:70%; }
 		.msg-me { background:#dcfce7; }
 		.msg-them { background:#f3f4f6; }
+
+		/* Action menu sits slightly outside the bubble and does not overlap text */
+		.msg { position: relative; padding-right: 64px; }
+		.msg .msg-actions { position: absolute; top: 6px; right: -18px; width:36px; height:36px; }
+		.msg .msg-actions .btn {
+			width:100%; height:100%; padding:0; display:flex; align-items:center; justify-content:center;
+			background:#fff; border:1px solid rgba(0,0,0,0.08); border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.12);
+		}
+		.msg .msg-actions .btn .fas { margin:0; }
+		.msg .msg-actions .dropdown-menu { z-index: 4000; }
 	</style>
 </head>
 <body>
@@ -95,12 +105,98 @@ $conversationId = 'u_' . $a . '_u_' . $b;
 			}
 		});
 
+		// Listen for edits / unsend events
+		channel.bind('update-message', payload => {
+			if (!payload || !payload.message) return;
+			const m = payload.message;
+			// Find existing DOM element by message id
+			const existing = document.querySelector('[data-msg-id="' + m.id + '"]');
+			if (existing) {
+				if (payload.type === 'unsend' || (m.is_unsent && parseInt(m.is_unsent) === 1)) {
+					existing.textContent = 'Message unsent.';
+					existing.classList.add('text-muted');
+				} else {
+					// edit
+					existing.textContent = m.body + (m.edited_at ? ' (edited)' : '');
+				}
+			} else {
+				// If not found, append it (in case client missed it)
+				appendMessage(m);
+			}
+			messagesDiv.scrollTop = messagesDiv.scrollHeight;
+		});
+
+		// Event delegation for edit / unsend clicks inside messagesDiv
+		messagesDiv.addEventListener('click', async function(e) {
+			const editLink = e.target.closest('.edit-action');
+			const unsendLink = e.target.closest('.unsend-action');
+			if (editLink) {
+				e.preventDefault();
+				const msgId = editLink.getAttribute('data-msg-id');
+				const bubble = document.querySelector('[data-msg-id="' + msgId + '"]');
+				const current = bubble ? bubble.textContent.replace(/\s*\(edited\)\s*$/, '').trim() : '';
+				const newText = prompt('Edit message:', current);
+				if (newText === null) return;
+				const body = newText.trim();
+				if (!body) return alert('Message cannot be empty');
+				const form = new FormData();
+				form.append('action', 'edit');
+				form.append('message_id', msgId);
+				form.append('conversation_id', convoId);
+				form.append('receiver_id', document.getElementById('receiver_id').value);
+				form.append('body', body);
+				const res = await fetch('<?php echo BASE_URL; ?>send_message.php', { method:'POST', body: form, credentials:'same-origin' });
+				const json = await res.json();
+				if (!json.ok) return alert(json.error || 'Failed to edit');
+				if (bubble) bubble.textContent = json.message.body + (json.message.edited_at ? ' (edited)' : '');
+			} else if (unsendLink) {
+				e.preventDefault();
+				const msgId = unsendLink.getAttribute('data-msg-id');
+				if (!confirm('Unsend this message?')) return;
+				const form = new FormData();
+				form.append('action', 'unsend');
+				form.append('message_id', msgId);
+				form.append('conversation_id', convoId);
+				form.append('receiver_id', document.getElementById('receiver_id').value);
+				const res = await fetch('<?php echo BASE_URL; ?>send_message.php', { method:'POST', body: form, credentials:'same-origin' });
+				const json = await res.json();
+				if (!json.ok) return alert(json.error || 'Failed to unsend');
+				const bubble = document.querySelector('[data-msg-id="' + msgId + '"]');
+				if (bubble) { bubble.textContent = 'Message unsent.'; bubble.classList.add('text-muted'); }
+			}
+		});
+
 		function appendMessage(m) {
 			const wrap = document.createElement('div');
 			wrap.className = (m.sender_id == myId) ? 'me my-1' : 'my-1';
 			const bubble = document.createElement('div');
 			bubble.className = 'msg ' + ((m.sender_id == myId) ? 'msg-me' : 'msg-them');
-			bubble.textContent = m.body;
+			bubble.setAttribute('data-msg-id', m.id);
+
+			// If message was unsent, show placeholder
+			if (m.is_unsent && parseInt(m.is_unsent) === 1) {
+				bubble.textContent = 'Message unsent.';
+				bubble.classList.add('text-muted');
+			} else {
+				bubble.textContent = m.body + (m.edited_at ? ' (edited)' : '');
+			}
+
+			// If this is my message and it's not unsent, add small action menu (three-dot) for Edit/Unsend
+			if (parseInt(m.sender_id) === parseInt(myId) && !(m.is_unsent && parseInt(m.is_unsent) === 1)) {
+				const dd = document.createElement('div');
+				dd.className = 'dropdown msg-actions';
+				dd.innerHTML = `
+					<button class="btn btn-sm btn-light dropdown-toggle" type="button" id="msgActions${m.id}" data-bs-toggle="dropdown" aria-expanded="false">
+						<i class="fas fa-ellipsis-v"></i>
+					</button>
+					<ul class="dropdown-menu dropdown-menu-end" aria-labelledby="msgActions${m.id}">
+						<li><a class="dropdown-item edit-action" href="#" data-msg-id="${m.id}">Edit</a></li>
+						<li><a class="dropdown-item text-danger unsend-action" href="#" data-msg-id="${m.id}">Unsend</a></li>
+					</ul>
+				`;
+				bubble.appendChild(dd);
+			}
+
 			wrap.appendChild(bubble);
 			messagesDiv.appendChild(wrap);
 			messagesDiv.scrollTop = messagesDiv.scrollHeight;
