@@ -224,9 +224,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		.form-control {
 			border: 2px solid #e5e7eb;
-			border-radius: 12px;
-			padding: 0.75rem 1rem;
+			border-radius: 16px;
+			padding: 0.9rem 1rem;
 			transition: all 0.3s ease;
+		}
+
+		.form-label {
+			font-weight: 600;
+			color: var(--text-dark);
+			margin-bottom: 0.4rem;
+			min-height: 2.8rem;
+		}
+
+		::placeholder {
+			color: #9ca3af;
+			opacity: 1;
 		}
 
 		.form-control:focus {
@@ -293,9 +305,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						<p class="text-muted">Login to continue</p>
 					</div>
 					<div class="card p-4 p-md-5">
-						<?php if ($error): ?>
-							<div class="alert alert-danger"><?php echo e($error); ?></div>
-						<?php endif; ?>
+										<?php if ($error): ?>
+											<div class="alert alert-danger" role="alert" aria-live="assertive"><?php echo e($error); ?></div>
+										<?php endif; ?>
 						<form method="post" novalidate>
 							<div class="mb-3">
 								<label class="form-label">Username or Email</label>

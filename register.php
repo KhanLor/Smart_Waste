@@ -270,9 +270,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		.form-control {
 			border: 2px solid #e5e7eb;
-			border-radius: 12px;
-			padding: 0.75rem 1rem;
+			border-radius: 16px;
+			padding: 0.9rem 1rem;
 			transition: all 0.3s ease;
+		}
+
+		.form-label {
+			font-weight: 600;
+			color: var(--text-dark);
+			margin-bottom: 0.4rem;
+			/* Ensure labels that wrap to two lines don't push inputs out of alignment */
+			min-height: 3.2rem;
+		}
+
+		/* Make the two-column form cells predictable: stack label and input vertically */
+		.row.g-3 > .col-md-6 {
+			display: flex;
+			flex-direction: column;
+		}
+
+		/* Add breathing room below the two-column row so single-column fields (Email, Phone) don't crowd */
+		.row.g-3 {
+			margin-bottom: 1.25rem;
+		}
+
+		::placeholder {
+			color: #9ca3af; /* slightly darker placeholder for readability */
+			opacity: 1;
 		}
 
 		.form-control:focus {
@@ -384,10 +408,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						<div class="mb-3">
 							<label class="form-label">Password</label>
 							<div class="input-group input-group-lg">
-								<input type="password" name="password" id="password" class="form-control" placeholder="At least 6 characters" required>
+								<input type="password" name="password" id="password" class="form-control" placeholder="At least 8 chars, incl. upper, lower, number & symbol" required aria-describedby="pwHelp">
 								<button type="button" class="btn btn-outline-secondary" onclick="togglePw('password', this)" aria-label="Toggle password visibility"><i class="fa-regular fa-eye"></i></button>
 							</div>
-							<small id="pwStrength" class="form-text text-muted"></small>
+							<small id="pwStrength" class="form-text text-muted" aria-live="polite"></small>
+							<small id="pwHelp" class="form-text text-muted">Password must be at least 8 characters and include upper/lowercase letters, a number, and a symbol.</small>
 						</div>
 						<div class="mb-3">
 							<label class="form-label">Confirm Password</label>
@@ -437,21 +462,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			else { input.type = 'password'; icon.classList.replace('fa-eye-slash', 'fa-eye'); }
 		}
 
-		const pw = document.getElementById('password');
-		const meter = document.getElementById('pwStrength');
-		if (pw && meter) {
-			pw.addEventListener('input', () => {
-				const v = pw.value;
-				let score = 0;
-				if (v.length >= 6) score++;
-				if (/[A-Z]/.test(v)) score++;
-				if (/[a-z]/.test(v)) score++;
-				if (/[0-9]/.test(v)) score++;
-				if (/[^A-Za-z0-9]/.test(v)) score++;
-				const labels = ['Very weak','Weak','Fair','Good','Strong'];
-				meter.textContent = v ? `Strength: ${labels[Math.max(0, score-1)]}` : '';
-			});
-		}
+			const pw = document.getElementById('password');
+			const meter = document.getElementById('pwStrength');
+			if (pw && meter) {
+				pw.addEventListener('input', () => {
+					const v = pw.value;
+					let score = 0;
+					// Updated to match server-side rules (min 8)
+					if (v.length >= 8) score++;
+					if (/[A-Z]/.test(v)) score++;
+					if (/[a-z]/.test(v)) score++;
+					if (/[0-9]/.test(v)) score++;
+					if (/[^A-Za-z0-9]/.test(v)) score++;
+					const labels = ['Very weak','Weak','Fair','Good','Strong'];
+					// Map score (0-5) to labels index 0-4
+					const idx = Math.max(0, Math.min(4, score - 1));
+					meter.textContent = v ? `Strength: ${labels[idx]}` : '';
+				});
+			}
 
 		// Helper function for escaping HTML
 		function e(str) {
