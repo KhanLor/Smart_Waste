@@ -206,9 +206,9 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 									<i class="fas fa-check-double me-1"></i>Mark all as read
 								</button>
 							</form>
-							<form method="post" class="m-0" onsubmit="return confirmDeleteAll()">
+							<form method="post" class="m-0" id="deleteAllForm">
 								<?php if ($filter): ?><input type="hidden" name="filter" value="<?php echo e($filter); ?>"><?php endif; ?>
-								<button type="submit" name="delete_all" value="1" class="btn btn-sm btn-outline-danger" <?php echo $notifications->num_rows === 0 ? 'disabled' : '';?>>
+								<button type="button" id="deleteAllBtn" class="btn btn-sm btn-outline-danger" <?php echo $notifications->num_rows === 0 ? 'disabled' : '';?>>
 									<i class="fas fa-trash me-1"></i>Delete all
 								</button>
 							</form>
@@ -247,9 +247,19 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										}
 										$isReport = (isset($n['reference_type']) && $n['reference_type'] === 'report' && !empty($n['reference_id']));
 										$reportHref = $isReport ? (BASE_URL . 'dashboard/resident/reports.php?report=' . urlencode($n['reference_id'])) : '';
-										// Collection notifications reference a collection_history.id -> link to resident collections and anchor to the history item
-										$isCollection = (isset($n['reference_type']) && $n['reference_type'] === 'collection' && !empty($n['reference_id']));
-										$collectionHref = $isCollection ? (BASE_URL . 'dashboard/resident/collections.php#history-' . urlencode($n['reference_id'])) : '';
+										// Collection notifications reference a collection_history.id -> link to resident collections.
+										// For "Collection Started" notifications there may be no history row yet (reference_id = 0),
+										// so link to the collections page (no anchor). If a history id exists, link to the specific history anchor.
+										$isCollection = (isset($n['reference_type']) && $n['reference_type'] === 'collection');
+										if ($isCollection) {
+											if (!empty($n['reference_id']) && intval($n['reference_id']) > 0) {
+												$collectionHref = BASE_URL . 'dashboard/resident/collections.php#history-' . urlencode($n['reference_id']);
+											} else {
+												$collectionHref = BASE_URL . 'dashboard/resident/collections.php';
+											}
+										} else {
+											$collectionHref = '';
+										}
 										// Schedule notifications reference a collection_schedules.id -> link to resident schedule page with schedule param
 										$isSchedule = (isset($n['reference_type']) && $n['reference_type'] === 'schedule' && !empty($n['reference_id']));
 										$scheduleHref = $isSchedule ? (BASE_URL . 'dashboard/resident/schedule.php?schedule=' . urlencode($n['reference_id'])) : '';
@@ -335,9 +345,7 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 	<script>
-		function confirmDeleteAll() {
-			return confirm('Are you sure you want to delete all notifications? This action cannot be undone.');
-		}
+
 
 		// Expand/collapse long previews (works on mobile)
 		document.addEventListener('click', function(e) {
@@ -356,37 +364,126 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 		});
 	</script>
 
+	<!-- Confirmation modal for single delete -->
+	<div class="modal fade" id="confirmDeleteModal" tabindex="-1" aria-labelledby="confirmDeleteModalLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="confirmDeleteModalLabel">Delete notification</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					Are you sure you want to delete this notification?
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+					<button type="button" id="confirmDeleteOk" class="btn btn-danger">Delete</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
 	<script>
-	// Delete single notification via API and remove from DOM
-	document.addEventListener('click', function(e) {
-		var delBtn = e.target.closest && e.target.closest('.delete-notif-btn');
-		if (!delBtn) return;
-	// Prevent anchor navigation when delete button is inside a link
-	e.preventDefault();
-	// stopImmediatePropagation prevents other handlers on the same element
-	// (like the notification link click handler below) from running and
-	// causing navigation after we delete via AJAX.
-	if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-		var btn = delBtn;
-		var nid = btn.getAttribute('data-notif-id');
-		if (!nid) return;
-		if (!confirm('Delete this notification?')) return;
-		btn.disabled = true;
-		fetch('<?php echo BASE_URL; ?>api/delete_notification.php', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ notification_id: parseInt(nid, 10) })
-		}).then(r => r.json()).then(data => {
-			if (data.success && data.deleted > 0) {
-				// remove the notif-item container
-				var item = btn.closest('.notif-item');
-				if (item) item.remove();
-			} else {
-				btn.disabled = false;
-				alert('Failed to delete notification');
+	// Delete single notification via API using a Bootstrap modal confirmation
+	(function(){
+		var deleteModalEl = document.getElementById('confirmDeleteModal');
+		var deleteModal = deleteModalEl ? new bootstrap.Modal(deleteModalEl) : null;
+		var pendingButton = null;
+		var pendingNid = null;
+
+		// Open modal when delete button clicked
+		document.addEventListener('click', function(e){
+			var delBtn = e.target.closest && e.target.closest('.delete-notif-btn');
+			if (!delBtn) return;
+			// Prevent navigation if inside link
+			if (e.preventDefault) e.preventDefault();
+			if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+			pendingButton = delBtn;
+			pendingNid = delBtn.getAttribute('data-notif-id');
+			if (!pendingNid) return;
+			if (deleteModal) deleteModal.show();
+		});
+
+		// Handle confirm in modal
+		var okBtn = document.getElementById('confirmDeleteOk');
+		if (okBtn) okBtn.addEventListener('click', function(){
+			if (!pendingButton || !pendingNid) {
+				if (deleteModal) deleteModal.hide();
+				return;
 			}
-		}).catch(err => { console.error(err); btn.disabled = false; alert('Error deleting notification'); });
-	});
+			var btn = pendingButton;
+			var nid = pendingNid;
+			btn.disabled = true;
+			if (deleteModal) deleteModal.hide();
+			fetch('<?php echo BASE_URL; ?>api/delete_notification.php', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ notification_id: parseInt(nid, 10) })
+			}).then(r => r.json()).then(data => {
+				if (data && data.success && data.deleted > 0) {
+					var item = btn.closest('.notif-item');
+					if (item) item.remove();
+				} else {
+					btn.disabled = false;
+					alert('Failed to delete notification');
+				}
+			}).catch(err => { console.error(err); btn.disabled = false; alert('Error deleting notification'); });
+
+			// clear pending
+			pendingButton = null;
+			pendingNid = null;
+		});
+	})();
+	</script>
+
+	<!-- Confirmation modal for delete all -->
+	<div class="modal fade" id="confirmDeleteAllModal" tabindex="-1" aria-labelledby="confirmDeleteAllModalLabel" aria-hidden="true">
+		<div class="modal-dialog modal-dialog-centered">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="confirmDeleteAllModalLabel">Delete all notifications</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					Are you sure you want to delete all notifications? This action cannot be undone.
+				</div>
+				<div class="modal-footer">
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+					<button type="button" id="confirmDeleteAllOk" class="btn btn-danger">Delete</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	(function(){
+		var delAllBtn = document.getElementById('deleteAllBtn');
+		var delAllForm = document.getElementById('deleteAllForm');
+		var modalEl = document.getElementById('confirmDeleteAllModal');
+		var modal = modalEl ? new bootstrap.Modal(modalEl) : null;
+		var confirmBtn = document.getElementById('confirmDeleteAllOk');
+		if (!delAllBtn || !delAllForm || !modal || !confirmBtn) return;
+
+		delAllBtn.addEventListener('click', function(e){
+			e.preventDefault();
+			modal.show();
+		});
+
+		confirmBtn.addEventListener('click', function(){
+			var inp = delAllForm.querySelector('input[name="delete_all"]');
+			if (!inp) {
+				inp = document.createElement('input');
+				inp.type = 'hidden';
+				inp.name = 'delete_all';
+				inp.value = '1';
+				delAllForm.appendChild(inp);
+			} else {
+				inp.value = '1';
+			}
+			modal.hide();
+			delAllForm.submit();
+		});
+	})();
 	</script>
 
 	<script>

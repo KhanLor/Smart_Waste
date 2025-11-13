@@ -96,7 +96,8 @@ $stmt = $conn->prepare("
         COUNT(*) as total_collections,
         SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_collections,
         SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) as missed_collections,
-        SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END) as partial_collections
+        SUM(CASE WHEN status = 'partial' THEN 1 ELSE 0 END) as partial_collections,
+        SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_collections
     FROM collection_history 
     WHERE DATE(collection_date) BETWEEN ? AND ?
 ");
@@ -386,17 +387,21 @@ $feedback_stats = $stmt->get_result()->fetch_assoc();
                                 </div>
                                 <div class="card-body">
                                     <div class="row text-center">
-                                        <div class="col-4">
+                                        <div class="col-3">
                                             <h4 class="text-success"><?php echo $collection_stats['completed_collections']; ?></h4>
                                             <small class="text-muted">Completed</small>
                                         </div>
-                                        <div class="col-4">
+                                        <div class="col-3">
                                             <h4 class="text-danger"><?php echo $collection_stats['missed_collections']; ?></h4>
                                             <small class="text-muted">Missed</small>
                                         </div>
-                                        <div class="col-4">
+                                        <div class="col-3">
                                             <h4 class="text-warning"><?php echo $collection_stats['partial_collections']; ?></h4>
                                             <small class="text-muted">Partial</small>
+                                        </div>
+                                        <div class="col-3">
+                                            <h4 class="text-secondary"><?php echo $collection_stats['cancelled_collections']; ?></h4>
+                                            <small class="text-muted">Cancelled</small>
                                         </div>
                                     </div>
                                     <hr>
