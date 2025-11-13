@@ -15,6 +15,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (isset($_POST['update_profile'])) {
             $phone = trim($_POST['phone'] ?? '');
             $address = trim($_POST['address'] ?? '');
+
+            // Validate & normalize phone: allow empty, otherwise ensure no letters and either +63XXXXXXXXXX or 11 digits
+            if ($phone !== '') {
+                if (preg_match('/[A-Za-z]/', $phone)) {
+                    throw new Exception('Phone number must not contain letters.');
+                }
+                $normalized = preg_replace('/[ \-()]/', '', $phone);
+                if (!preg_match('/^\+63\d{10}$/', $normalized) && !preg_match('/^\d{11}$/', $normalized)) {
+                    throw new Exception('Phone must be a Philippine number (e.g., +639123456789) or 11 digits (e.g., 09123456789).');
+                }
+                $phone = $normalized;
+            }
+
             $stmt = $conn->prepare("UPDATE users SET phone = ?, address = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND role = 'collector'");
             $stmt->bind_param('ssi', $phone, $address, $user_id);
             if ($stmt->execute()) { $success = 'Profile updated.'; } else { throw new Exception('Failed to update profile'); }
@@ -157,7 +170,10 @@ $user = $stmt->get_result()->fetch_assoc();
                                         <input type="hidden" name="update_profile" value="1">
                                         <div class="mb-3"><label class="form-label">Name</label><input type="text" class="form-control" value="<?php echo e(($user['first_name']??'') . ' ' . ($user['last_name']??'')); ?>" disabled></div>
                                         <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" value="<?php echo e($user['email'] ?? ''); ?>" disabled></div>
-                                        <div class="mb-3"><label class="form-label">Phone</label><input type="tel" class="form-control" name="phone" value="<?php echo e($user['phone'] ?? ''); ?>"></div>
+                                        <div class="mb-3"><label class="form-label">Phone</label>
+                                            <input type="tel" inputmode="tel" pattern="(\+63\d{10}|\d{11})" class="form-control" name="phone" value="<?php echo e($user['phone'] ?? ''); ?>" oninput="sanitizePhone(this)">
+                                            <div class="form-text text-muted">Accepts +63XXXXXXXXXX or exactly 11 digits (e.g. 09123456789). Letters are not allowed.</div>
+                                        </div>
                                         <div class="mb-3"><label class="form-label">Address</label><textarea class="form-control" name="address" rows="3"><?php echo e($user['address'] ?? ''); ?></textarea></div>
                                         <button class="btn btn-warning" type="submit"><i class="fas fa-save me-1"></i>Save Changes</button>
                                     </form>
@@ -278,6 +294,14 @@ $user = $stmt->get_result()->fetch_assoc();
             setTimeout(() => {
                 alertDiv.remove();
             }, 5000);
+        }
+        // Sanitize phone input (remove letters and disallowed chars)
+        function sanitizePhone(el) {
+            var v = el.value || '';
+            v = v.replace(/[A-Za-z]/g, '');
+            v = v.replace(/[^+\d\s\-()]/g, '');
+            v = v.trim();
+            el.value = v;
         }
     </script>
 </body>

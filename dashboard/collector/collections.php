@@ -110,7 +110,15 @@ $username = $_SESSION['username'] ?? 'Collector';
             for (const it of data.items) {
                 const tr = document.createElement('tr');
                 const scheduleId = it.schedule_id || it.id; // fallback if schedule_id missing
-                const statusText = (it.status || '').replace('_',' ');
+                const statusText = (it.status || '').replace(/_/g,' ');
+                // determine badge class for status
+                const statusLower = (it.status || '').toLowerCase();
+                let badgeClass = 'bg-secondary';
+                if (statusLower === 'completed') badgeClass = 'bg-success';
+                else if (statusLower === 'missed') badgeClass = 'bg-danger';
+                else if (statusLower === 'cancelled') badgeClass = 'bg-secondary text-dark';
+                else if (statusLower === 'in_progress') badgeClass = 'bg-primary';
+                else if (statusLower === 'pending' || statusLower === 'assigned') badgeClass = 'bg-warning text-dark';
 
                 // Actions: Pending, Start (in_progress), Complete
                 let actionsHtml = '';
@@ -118,6 +126,8 @@ $username = $_SESSION['username'] ?? 'Collector';
                     actionsHtml = '<span class="text-success fw-bold small"><i class="fas fa-check-circle me-1"></i>Completed</span>';
                 } else if ((it.status || '') === 'missed') {
                     actionsHtml = '<span class="text-danger fw-bold small"><i class="fas fa-exclamation-circle me-1"></i>Missed</span>';
+                } else if ((it.status || '') === 'cancelled') {
+                    actionsHtml = '<span class="text-secondary fw-bold small"><i class="fas fa-ban me-1"></i>Cancelled</span>';
                 } else {
                     // include delete action per history record (use it.id as history id)
                     const historyId = it.id;
@@ -136,7 +146,7 @@ $username = $_SESSION['username'] ?? 'Collector';
                     <td>${it.time || ''}</td>
                     <td>${it.area || ''} ${it.street_name ? '- ' + it.street_name : ''}</td>
                     <td><span class="badge bg-info text-dark">${it.waste_type}</span></td>
-                    <td><span class="badge bg-secondary text-uppercase">${statusText}</span></td>
+                    <td><span class="badge ${badgeClass} text-uppercase">${statusText}</span></td>
                     <td>${actionsHtml}</td>
                 `;
                 tbody.appendChild(tr);

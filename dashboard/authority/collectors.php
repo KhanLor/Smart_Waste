@@ -12,7 +12,7 @@ $user_id = $_SESSION['user_id'] ?? null;
 $success_message = '';
 $error_message = '';
 
-// Handle form submission
+        // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'add_collector') {
         $username = trim($_POST['username'] ?? '');
@@ -29,8 +29,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
             $error_message = 'Please fill in all required fields.';
         } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             $error_message = 'Please enter a valid email address.';
-        } elseif (strlen($password) < 6) {
-            $error_message = 'Password must be at least 6 characters long.';
+        } elseif (!preg_match('/^\d{11}$/', $phone) && !empty($phone)) {
+            $error_message = 'Phone must be 11 digits (e.g. 09171234567).';
+        } elseif (strlen($password) < 8) {
+            $error_message = 'Password must be at least 8 characters long.';
+        } elseif (!preg_match('/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/', $password)) {
+            $error_message = 'Password must include uppercase, lowercase letters and at least one number.';
         } else {
             try {
                 // Check if username or email already exists
@@ -44,10 +48,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // Hash password
                     $hashed_password = password_hash($password, PASSWORD_DEFAULT);
                     
-                    // Insert collector
+                    // Insert collector and mark email as verified (authority-created)
                     $stmt = $conn->prepare("
-                        INSERT INTO users (username, first_name, middle_name, last_name, email, password, role, address, phone) 
-                        VALUES (?, ?, ?, ?, ?, ?, 'collector', ?, ?)
+                        INSERT INTO users (username, first_name, middle_name, last_name, email, password, role, address, phone, email_verified_at) 
+                        VALUES (?, ?, ?, ?, ?, ?, 'collector', ?, ?, NOW())
                     ");
                     $stmt->bind_param("ssssssss", $username, $first_name, $middle_name, $last_name, $email, $hashed_password, $address, $phone);
                     
@@ -279,6 +283,48 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
 
         /* dropdown clarity */
         .dropdown .dropdown-toggle { background:#f4f6f8; border:1px solid rgba(0,0,0,0.06); padding:0.35rem 0.5rem; border-radius:8px; color:#333; }
+    .add-collector-btn { border-radius: 12px; padding: 0.6rem 1rem; font-weight:600; }
+
+    /* password strength */
+    .password-strength { height: 8px; border-radius: 4px; overflow: hidden; }
+    .password-strength .progress-bar { transition: width 160ms ease; }
+    .password-strength-text { font-size: .875rem; }
+
+        /* Responsive adjustments */
+        @media (max-width: 767.98px) {
+            .collector-avatar { width:48px; height:48px; font-size:1.15rem; }
+            .card.collector-card { border-left-width: 6px; }
+            .stat-card .fa-2x { font-size:1.6rem; }
+            .filter-card .form-control { margin-bottom: .5rem; }
+        }
+
+        /* Make search and button stack nicely on small screens */
+        @media (max-width: 575.98px) {
+            .header-actions { margin-top: 1rem; }
+            .collector-card .card-body { padding: 1rem; }
+        }
+
+        /* Make add collector modal friendly on small screens */
+        #addCollectorModal .modal-dialog.modal-fullscreen-sm-down { margin: 0; }
+        #addCollectorModal .modal-content { height: 100%; display: flex; flex-direction: column; }
+        #addCollectorModal .modal-body {
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            /* leave space for header/footer */
+            max-height: calc(100vh - 160px);
+        }
+        #addCollectorModal .modal-footer {
+            position: sticky;
+            bottom: 0;
+            background: #fff;
+            z-index: 10;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-top: 1px solid rgba(0,0,0,0.08);
+        }
+
+        /* Ensure file input doesn't overflow */
+        #addCollectorModal .form-control[type="file"] { max-width: 100%; }
         .dropdown-menu { z-index:3000; box-shadow:0 6px 18px rgba(0,0,0,0.12); }
     </style>
 </head>
@@ -294,12 +340,16 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
             <div class="col-md-9 col-lg-10">
                 <div class="p-4">
                     <!-- Header -->
-                    <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4">
                         <div>
                             <h2 class="mb-1">Collectors Management</h2>
                             <p class="text-muted mb-0">Manage waste collection staff and assignments</p>
                         </div>
-                        <!-- Add Collector button removed per request -->
+                        <div class="header-actions d-flex gap-2 mt-3 mt-md-0">
+                            <button class="btn btn-primary add-collector-btn" data-bs-toggle="modal" data-bs-target="#addCollectorModal">
+                                <i class="fas fa-plus-circle me-2"></i>Add Collector
+                            </button>
+                        </div>
                     </div>
 
                     <!-- Messages -->
@@ -479,7 +529,88 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
         </div>
     </div>
 
-    <!-- Add Collector UI removed -->
+    <!-- Add Collector Modal -->
+    <div class="modal fade" id="addCollectorModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Add New Collector</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST" enctype="multipart/form-data" id="addCollectorForm">
+                    <div class="modal-body">
+                        <input type="hidden" name="action" value="add_collector">
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="first_name" class="form-label">First name <span class="text-danger">*</span></label>
+                                <input type="text" id="first_name" name="first_name" class="form-control" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="last_name" class="form-label">Last name <span class="text-danger">*</span></label>
+                                <input type="text" id="last_name" name="last_name" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="middle_name" class="form-label">Middle name</label>
+                            <input type="text" id="middle_name" name="middle_name" class="form-control">
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="username" class="form-label">Username / Handle <span class="text-danger">*</span></label>
+                                <input type="text" id="username" name="username" class="form-control" placeholder="e.g. collector01" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="email" class="form-label">Email <span class="text-danger">*</span></label>
+                                <input type="email" id="email" name="email" class="form-control" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="phone" class="form-label">Phone</label>
+                                <input type="tel" id="phone" name="phone" class="form-control" placeholder="e.g. 09171234567" pattern="^\d{11}$" maxlength="11" inputmode="numeric" title="11 digits required" aria-describedby="phoneHelp">
+                                <div id="phoneHelp" class="form-text">Enter 11 digits (e.g. 09171234567)</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="password" class="form-label">Password <span class="text-danger">*</span></label>
+                                <div class="input-group">
+                                    <input type="password" id="password" name="password" class="form-control" required aria-describedby="passwordHelpText">
+                                    <button class="btn btn-outline-secondary" type="button" id="togglePassword" aria-label="Toggle password visibility"><i class="fa-regular fa-eye" id="togglePasswordIcon"></i></button>
+                                </div>
+                                <div class="mt-2">
+                                    <div class="password-strength">
+                                        <div id="passwordStrengthBar" class="progress-bar bg-danger" role="progressbar" style="width:0%"></div>
+                                    </div>
+                                    <div id="passwordStrengthText" class="password-strength-text text-muted">At least 8 chars, include uppercase, lowercase and a number</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="address" class="form-label">Address <span class="text-danger">*</span></label>
+                            <textarea id="address" name="address" class="form-control" rows="3" required></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="profile_image" class="form-label">Profile image (optional)</label>
+                            <div class="input-group">
+                                <input type="file" id="profile_image" name="profile_image" class="form-control" accept="image/*">
+                            </div>
+                            <small class="text-muted">Optional. Upload later from profile if preferred.</small>
+                        </div>
+
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Collector</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <!-- Edit Collector Modal -->
     <div class="modal fade" id="editCollectorModal" tabindex="-1">
@@ -570,6 +701,77 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
             document.getElementById('deleteCollectorId').value = collectorId;
             new bootstrap.Modal(document.getElementById('deleteModal')).show();
         }
+        
+        // Password toggle and strength
+        (function(){
+            const pwd = document.getElementById('password');
+            const toggleBtn = document.getElementById('togglePassword');
+            const toggleIcon = document.getElementById('togglePasswordIcon');
+            const strengthBar = document.getElementById('passwordStrengthBar');
+            const strengthText = document.getElementById('passwordStrengthText');
+            const addForm = document.getElementById('addCollectorForm');
+
+            function setStrength(score){
+                let width = Math.min(100, score * 20);
+                strengthBar.style.width = width + '%';
+                strengthBar.classList.remove('bg-danger','bg-warning','bg-info','bg-success');
+                if(score <= 2){ strengthBar.classList.add('bg-danger'); strengthText.textContent = 'Weak — use at least 8 chars, add numbers and uppercase'; }
+                else if(score === 3){ strengthBar.classList.add('bg-warning'); strengthText.textContent = 'Fair — add a symbol or make it longer'; }
+                else if(score === 4){ strengthBar.classList.add('bg-info'); strengthText.textContent = 'Good — consider adding symbols'; }
+                else { strengthBar.classList.add('bg-success'); strengthText.textContent = 'Strong password'; }
+            }
+
+            function evalPassword(p){
+                let score = 0;
+                if(!p) return 0;
+                if(p.length >= 8) score++;
+                if(/[a-z]/.test(p)) score++;
+                if(/[A-Z]/.test(p)) score++;
+                if(/\d/.test(p)) score++;
+                if(/[^A-Za-z0-9]/.test(p)) score++;
+                return score;
+            }
+
+            if(toggleBtn && toggleIcon && pwd){
+                toggleBtn.addEventListener('click', function(){
+                    if(pwd.type === 'password'){
+                        pwd.type = 'text';
+                        toggleIcon.classList.remove('fa-eye');
+                        toggleIcon.classList.add('fa-eye-slash');
+                    } else {
+                        pwd.type = 'password';
+                        toggleIcon.classList.remove('fa-eye-slash');
+                        toggleIcon.classList.add('fa-eye');
+                    }
+                });
+
+                pwd.addEventListener('input', function(e){
+                    const s = evalPassword(e.target.value);
+                    setStrength(s);
+                });
+            }
+
+            if(addForm){
+                addForm.addEventListener('submit', function(e){
+                    // client-side enforcement
+                    const phone = document.getElementById('phone');
+                    const pw = document.getElementById('password');
+                    if(phone && phone.value.trim() !== '' && !/^\d{11}$/.test(phone.value.trim())){
+                        e.preventDefault();
+                        alert('Phone must be 11 digits (e.g. 09171234567).');
+                        phone.focus();
+                        return false;
+                    }
+                    const score = evalPassword(pw.value);
+                    if(score < 3){
+                        e.preventDefault();
+                        alert('Please choose a stronger password. Use at least 8 characters including uppercase, lowercase and numbers.');
+                        pw.focus();
+                        return false;
+                    }
+                });
+            }
+        })();
     </script>
 </body>
 </html>

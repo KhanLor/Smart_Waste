@@ -10,8 +10,17 @@ if (($_SESSION['role'] ?? '') !== 'authority') {
 }
 
 $user_id = $_SESSION['user_id'] ?? null;
+// Flash messages from previous POST (Post/Redirect/Get)
 $success_message = '';
 $error_message = '';
+if (!empty($_SESSION['flash_success'])) {
+    $success_message = $_SESSION['flash_success'];
+    unset($_SESSION['flash_success']);
+}
+if (!empty($_SESSION['flash_error'])) {
+    $error_message = $_SESSION['flash_error'];
+    unset($_SESSION['flash_error']);
+}
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
@@ -36,7 +45,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->bind_param("sssssssi", $area, $street_name, $collection_day, $collection_time, $waste_type, $assigned_collector, $status, $user_id);
                 
                 if ($stmt->execute()) {
-                    $success_message = 'Collection schedule added successfully.';
                     $new_schedule_id = $conn->insert_id;
                     // Fan-out in-app notifications to residents whose address matches street or area
                     try {
@@ -91,6 +99,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         // Log notification results for debugging
                         error_log("Push notification results: " . print_r($results, true));
                     } catch (Throwable $e) {}
+                    // Use Post/Redirect/Get to avoid browser resubmit on reload
+                    $_SESSION['flash_success'] = 'Collection schedule added successfully.';
+                    header('Location: ' . $_SERVER['REQUEST_URI']);
+                    exit;
                 } else {
                     throw new Exception('Failed to add collection schedule.');
                 }
@@ -118,7 +130,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->bind_param("sssssssi", $area, $street_name, $collection_day, $collection_time, $waste_type, $assigned_collector, $status, $schedule_id);
                 
                 if ($stmt->execute()) {
-                    $success_message = 'Collection schedule updated successfully.';
+                    // Use Post/Redirect/Get to avoid browser resubmit on reload
+                    $_SESSION['flash_success'] = 'Collection schedule updated successfully.';
+                    header('Location: ' . $_SERVER['REQUEST_URI']);
+                    exit;
                     // Fan-out in-app notifications to residents whose address matches street or area
                     try {
                         $notif_title = 'Collection Schedule Updated';
@@ -170,7 +185,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->bind_param("i", $schedule_id);
                 
                 if ($stmt->execute()) {
-                    $success_message = 'Collection schedule deleted successfully.';
+                    // Use Post/Redirect/Get to avoid browser resubmit on reload
+                    $_SESSION['flash_success'] = 'Collection schedule deleted successfully.';
+                    header('Location: ' . $_SERVER['REQUEST_URI']);
+                    exit;
                     // Realtime: notify residents about deleted schedule
                     try {
                         $pusher = new Pusher\Pusher(PUSHER_KEY, PUSHER_SECRET, PUSHER_APP_ID, ['cluster' => PUSHER_CLUSTER, 'useTLS' => PUSHER_USE_TLS]);
@@ -326,17 +344,21 @@ $stmt = $conn->prepare("SELECT id, first_name, last_name FROM users WHERE role =
 $stmt->execute();
 $collectors = $stmt->get_result();
 
-// Get collection history for statistics
-$stmt = $conn->prepare("
-    SELECT 
-        COUNT(*) as total_collections,
-        SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_collections,
-        SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) as missed_collections
-    FROM collection_history 
-    WHERE DATE(collection_date) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
-");
-$stmt->execute();
-$collection_stats = $stmt->get_result()->fetch_assoc();
+// (removed duplicate older aggregation) - using the consolidated stats query below
+    // Get collection history for statistics (last 30 days)
+    $stmt = $conn->prepare(
+        "
+            SELECT 
+                COUNT(*) as total_collections,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed_collections,
+                SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) as missed_collections,
+                SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_collections
+            FROM collection_history 
+            WHERE DATE(collection_date) >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+        "
+    );
+    $stmt->execute();
+    $collection_stats = $stmt->get_result()->fetch_assoc();
 ?>
 
 <!DOCTYPE html>
@@ -396,6 +418,9 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
         }
         .stat-card.danger {
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
+        }
+        .stat-card.cancelled {
+            background: linear-gradient(135deg, #6f42c1 0%, #5a2ea6 100%);
         }
         /* Notifications UI clarity */
         .header-update-badge {
@@ -490,8 +515,8 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                     <?php endif; ?>
 
                     <!-- Statistics -->
-                    <div class="row mb-4">
-                        <div class="col-md-4 mb-3">
+                    <div class="row mb-4 gx-3 gy-3">
+                        <div class="col-12 col-sm-6 col-md-3">
                             <div class="card stat-card">
                                 <div class="card-body text-center">
                                     <i class="fas fa-calendar fa-2x mb-2"></i>
@@ -500,21 +525,30 @@ $collection_stats = $stmt->get_result()->fetch_assoc();
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-12 col-sm-6 col-md-3">
                             <div class="card stat-card success">
                                 <div class="card-body text-center">
                                     <i class="fas fa-check-circle fa-2x mb-2"></i>
-                                    <h4 class="mb-1"><?php echo $collection_stats['completed_collections']; ?></h4>
+                                    <h4 class="mb-1"><?php echo (int)($collection_stats['completed_collections'] ?? 0); ?></h4>
                                     <small>Completed (30 days)</small>
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-12 col-sm-6 col-md-3">
                             <div class="card stat-card danger">
                                 <div class="card-body text-center">
                                     <i class="fas fa-times-circle fa-2x mb-2"></i>
-                                    <h4 class="mb-1"><?php echo $collection_stats['missed_collections']; ?></h4>
+                                    <h4 class="mb-1"><?php echo (int)($collection_stats['missed_collections'] ?? 0); ?></h4>
                                     <small>Missed (30 days)</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-12 col-sm-6 col-md-3">
+                            <div class="card stat-card cancelled">
+                                <div class="card-body text-center">
+                                    <i class="fas fa-ban fa-2x mb-2"></i>
+                                    <h4 class="mb-1"><?php echo (int)($collection_stats['cancelled_collections'] ?? 0); ?></h4>
+                                    <small>Cancelled (30 days)</small>
                                 </div>
                             </div>
                         </div>

@@ -215,6 +215,24 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										// Report link
 										$isReport = (isset($n['reference_type']) && $n['reference_type'] === 'report' && !empty($n['reference_id']));
 										$reportHref = $isReport ? ('reports.php?report=' . urlencode($n['reference_id'])) : '';
+										// Collection notifications reference collection_history.id. For authorities, link to schedule activity modal by resolving schedule_id
+										$isCollection = (isset($n['reference_type']) && $n['reference_type'] === 'collection' && !empty($n['reference_id']));
+										$collectionOnclick = '';
+										if ($isCollection) {
+											try {
+												$chStmt = $conn->prepare("SELECT schedule_id FROM collection_history WHERE id = ? LIMIT 1");
+												if ($chStmt) {
+													$chStmt->bind_param('i', $n['reference_id']);
+													$chStmt->execute();
+													$chRow = $chStmt->get_result()->fetch_assoc();
+													$chStmt->close();
+													if ($chRow && !empty($chRow['schedule_id'])) {
+														$sid = (int)$chRow['schedule_id'];
+														$collectionOnclick = "viewScheduleActivity(" . $sid . ")";
+													}
+												}
+											} catch (Exception $e) { /* ignore */ }
+										}
 									?>
 
 									<?php
@@ -227,9 +245,11 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										<a href="<?php echo e($chatHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
 									<?php elseif ($isReport && $reportHref): ?>
 										<a href="<?php echo e($reportHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+									<?php elseif ($isCollection && $collectionOnclick): ?>
+										<a href="#" onclick="<?php echo e($collectionOnclick); ?>; return false;" class="notif-link text-decoration-none text-dark" tabindex="0">
 									<?php endif; ?>
 
-									<div class="alert <?php echo $cardClass; ?> notif-card d-flex gap-3 align-items-start">
+									<div class="alert <?php echo $cardClass; ?> notif-card d-flex gap-3 align-items-start" style="position:relative;">
 										<div class="notif-icon text-center">
 											<?php if ($n['reference_type'] === 'chat'): ?>
 												<i class="fas fa-comments fa-lg text-info"></i>
@@ -250,8 +270,15 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 													</div>
 													<div class="notif-meta"><?php echo format_ph_date($n['created_at']); ?></div>
 												</div>
-												<div>
-													<?php if ((int)$n['is_read'] === 0): ?><span class="badge bg-danger">New</span><?php endif; ?>
+												<div class="d-flex align-items-start">
+													<div class="me-2">
+														<?php if ((int)$n['is_read'] === 0): ?><span class="badge bg-danger">New</span><?php endif; ?>
+													</div>
+													<div>
+														<button type="button" class="btn btn-sm btn-outline-secondary delete-notif-btn" data-notif-id="<?php echo e($n['id']); ?>" title="Delete notification">
+															<i class="fas fa-trash"></i>
+														</button>
+													</div>
 												</div>
 											</div>
 											<div id="notif-preview-<?php echo e($n['id']); ?>" class="mt-2 notif-preview"><?php echo e($n['message']); ?></div>
@@ -259,7 +286,7 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										</div>
 									</div>
 
-									<?php if (($isChat && $chatHref) || ($isReport && $reportHref)): ?>
+									<?php if (($isChat && $chatHref) || ($isReport && $reportHref) || ($isCollection && $collectionOnclick)): ?>
 										</a>
 									<?php endif; ?>
 									</div>
@@ -291,6 +318,35 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 				}
 			}
 		});
+	</script>
+
+	<script>
+	// Delete single notification via API and remove from DOM (authority)
+	document.addEventListener('click', function(e) {
+		var delBtn = e.target.closest && e.target.closest('.delete-notif-btn');
+		if (!delBtn) return;
+		// Prevent anchor navigation when delete button is inside a link
+		e.preventDefault();
+		e.stopPropagation();
+		var btn = delBtn;
+		var nid = btn.getAttribute('data-notif-id');
+		if (!nid) return;
+		if (!confirm('Delete this notification?')) return;
+		btn.disabled = true;
+		fetch('<?php echo BASE_URL; ?>api/delete_notification.php', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ notification_id: parseInt(nid, 10) })
+		}).then(r => r.json()).then(data => {
+			if (data.success && data.deleted > 0) {
+				var item = btn.closest('.notif-item');
+				if (item) item.remove();
+			} else {
+				btn.disabled = false;
+				alert('Failed to delete notification');
+			}
+		}).catch(err => { console.error(err); btn.disabled = false; alert('Error deleting notification'); });
+	});
 	</script>
 </body>
 </html>

@@ -143,6 +143,8 @@ if ($schedules->num_rows > 0) {
             background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
             color: white;
         }
+        /* highlight animation for anchored schedule cards */
+        .flash-highlight { box-shadow: 0 0 0 4px rgba(255,193,7,0.12), 0 8px 24px rgba(15,23,42,0.06); transition: box-shadow 0.3s ease; }
         /* Mobile-first clarity tweaks */
         @media (max-width: 767.98px) {
             .container-fluid { padding-left: 12px; padding-right: 12px; }
@@ -255,9 +257,12 @@ if ($schedules->num_rows > 0) {
                                                     }
                                                 }
                                                 $isToday = $day === $today;
+                                                // card id and whether it should be highlighted
+                                                $cardId = 'schedule-' . ($daySchedule['id'] ?? uniqid());
+                                                $isHighlight = (isset($highlightScheduleId) && $highlightScheduleId && isset($daySchedule['id']) && (int)$daySchedule['id'] === $highlightScheduleId);
                                                 ?>
                                                 <div class="col-md-6 col-lg-4 mb-3">
-                                                    <div class="schedule-card card <?php echo $isToday ? 'today' : ''; ?>">
+                                                    <div id="<?php echo e($cardId); ?>" class="schedule-card card <?php echo $isToday ? 'today' : ''; ?> <?php echo $isHighlight ? 'border-primary shadow-lg' : ''; ?>">
                                                         <div class="card-body">
                                                             <h6 class="card-title d-flex justify-content-between align-items-center">
                                                                 <?php echo ucfirst($day); ?>
@@ -326,7 +331,13 @@ if ($schedules->num_rows > 0) {
                                                         <?php endif; ?>
                                                     </small>
                                                     <br>
-                                                    <span class="badge bg-<?php echo $history['status'] === 'completed' ? 'success' : ($history['status'] === 'missed' ? 'danger' : 'warning'); ?>">
+                                                    <?php
+                                                        $badgeClass = 'warning';
+                                                        if ($history['status'] === 'completed') $badgeClass = 'success';
+                                                        elseif ($history['status'] === 'missed') $badgeClass = 'danger';
+                                                        elseif ($history['status'] === 'cancelled') $badgeClass = 'secondary';
+                                                    ?>
+                                                    <span class="badge bg-<?php echo $badgeClass; ?>">
                                                         <?php echo ucfirst($history['status']); ?>
                                                     </span>
                                                 </div>
@@ -469,6 +480,27 @@ if ($schedules->num_rows > 0) {
                     console.error('Service Worker registration failed:', error);
                 }
             }
+        })();
+    </script>
+    <script>
+        // If URL contains ?schedule=ID, scroll to and highlight the corresponding card
+        (function(){
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const sid = params.get('schedule');
+                if (sid && /^[0-9]+$/.test(sid)) {
+                    const el = document.getElementById('schedule-' + sid);
+                    if (el) {
+                        // scroll into view and add highlight
+                        setTimeout(() => {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                            el.classList.add('flash-highlight');
+                            // remove highlight after a short delay
+                            setTimeout(() => el.classList.remove('flash-highlight'), 4000);
+                        }, 200);
+                    }
+                }
+            } catch (e) { console.error(e); }
         })();
     </script>
 </body>

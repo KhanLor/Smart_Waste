@@ -52,8 +52,26 @@ try {
     $stmt->execute();
     $rows = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 
-    $tasks = array_map(function($r) {
-        return [
+    // For each schedule row, determine today's run status from collection_history so the UI sees server-authoritative state
+    $tasks = [];
+    foreach ($rows as $r) {
+        $run_status = null;
+        try {
+            $stmtH = $conn->prepare("SELECT status FROM collection_history WHERE schedule_id = ? AND collector_id = ? AND DATE(collection_date) = CURDATE() ORDER BY id DESC LIMIT 1");
+            if ($stmtH) {
+                $stmtH->bind_param('ii', $r['id'], $collector_id);
+                $stmtH->execute();
+                $resH = $stmtH->get_result();
+                if ($resH && $resH->num_rows > 0) {
+                    $run_status = $resH->fetch_assoc()['status'];
+                }
+                $stmtH->close();
+            }
+        } catch (Throwable $e) {
+            $run_status = null;
+        }
+
+        $tasks[] = [
             'id' => $r['id'],
             'area' => $r['area'],
             'street_name' => $r['street_name'],
@@ -62,11 +80,12 @@ try {
             'collection_day' => $r['collection_day'],
             'collection_time' => format_ph_date($r['collection_time'], 'g:i A'),
             'waste_type' => $r['waste_type'],
-            'status' => $r['status'],
+            // Expose server run status if present; otherwise keep schedule status as fallback
+            'status' => $run_status ?? $r['status'],
             'assigned_collector' => $r['first_name'] ? $r['first_name'] . ' ' . $r['last_name'] : null,
             'created_at' => format_ph_date($r['created_at']),
         ];
-    }, $rows);
+    }
 
     echo json_encode([
         'success' => true,

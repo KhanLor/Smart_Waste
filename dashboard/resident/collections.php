@@ -28,7 +28,8 @@ $stats = [
     'total_collections' => 0,
     'completed_collections' => 0,
     'missed_collections' => 0,
-    'pending_collections' => 0
+    'pending_collections' => 0,
+    'cancelled_collections' => 0
 ];
 
 if ($table_exists) {
@@ -84,7 +85,8 @@ if ($table_exists) {
             COUNT(*) as total_collections,
             SUM(CASE WHEN ch.status = 'completed' THEN 1 ELSE 0 END) as completed_collections,
             SUM(CASE WHEN ch.status = 'missed' THEN 1 ELSE 0 END) as missed_collections,
-            SUM(CASE WHEN ch.status = 'scheduled' THEN 1 ELSE 0 END) as pending_collections
+            SUM(CASE WHEN ch.status = 'scheduled' THEN 1 ELSE 0 END) as pending_collections,
+            SUM(CASE WHEN ch.status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_collections
         FROM collection_history ch
         JOIN collection_schedules cs ON ch.schedule_id = cs.id
         WHERE 
@@ -98,7 +100,8 @@ if ($table_exists) {
         $stmt->execute();
         $stats_result = $stmt->get_result()->fetch_assoc();
         if ($stats_result) {
-            $stats = $stats_result;
+            // Ensure all expected keys exist
+            $stats = array_merge($stats, $stats_result);
         }
     }
 }
@@ -146,6 +149,10 @@ if ($table_exists) {
         .stat-card.danger {
             background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
         }
+        .stat-card.cancelled {
+            background: linear-gradient(135deg, #f0ad4e 0%, #e69a1c 100%);
+            color: #fff;
+        }
         .stat-card.warning {
             background: linear-gradient(135deg, #ffc107 0%, #e0a800 100%);
         }
@@ -164,6 +171,9 @@ if ($table_exists) {
         }
         .collection-item.pending {
             border-left-color: #ffc107;
+        }
+        .collection-item.cancelled {
+            border-left-color: #f0ad4e;
         }
         .status-badge {
             font-size: 0.8rem;
@@ -261,6 +271,20 @@ if ($table_exists) {
                                 </div>
                             </div>
                         </div>
+                        <div class="col-md-3 mb-3">
+                            <div class="card stat-card cancelled">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">Cancelled</h6>
+                                            <h4 class="mb-0"><?php echo $stats['cancelled_collections']; ?></h4>
+                                            <small>Cancelled collections</small>
+                                        </div>
+                                        <i class="fas fa-ban fa-2x opacity-75"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- Collection History -->
@@ -280,7 +304,7 @@ if ($table_exists) {
                                 </div>
                             <?php elseif ($collection_history && $collection_history->num_rows > 0): ?>
                                 <?php while ($history = $collection_history->fetch_assoc()): ?>
-                                    <div class="collection-item <?php echo $history['status']; ?> p-3 mb-3">
+                                    <div id="history-<?php echo (int)$history['id']; ?>" class="collection-item <?php echo $history['status']; ?> p-3 mb-3">
                                         <div class="row align-items-center">
                                             <div class="col-md-8">
                                                 <h6 class="mb-1"><?php echo e($history['street_name']); ?></h6>
@@ -299,7 +323,13 @@ if ($table_exists) {
                                                 <?php endif; ?>
                                             </div>
                                             <div class="col-md-4 text-end">
-                                                <span class="badge bg-<?php echo $history['status'] === 'completed' ? 'success' : ($history['status'] === 'missed' ? 'danger' : 'warning'); ?> status-badge mb-2">
+                                                <?php
+                                                    $badgeClass = 'warning';
+                                                    if ($history['status'] === 'completed') $badgeClass = 'success';
+                                                    elseif ($history['status'] === 'missed') $badgeClass = 'danger';
+                                                    elseif ($history['status'] === 'cancelled') $badgeClass = 'secondary';
+                                                ?>
+                                                <span class="badge bg-<?php echo $badgeClass; ?> status-badge mb-2">
                                                     <?php echo ucfirst($history['status']); ?>
                                                 </span>
                                                 <br>

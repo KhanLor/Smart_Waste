@@ -197,23 +197,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		/* Login Form Styles */
 		.login-container {
 			min-height: 100vh;
-			padding-top: 100px;
+			/* small internal offset; actual top spacing is driven by JS setting body padding to navbar height */
+			padding-top: 20px;
+			padding-bottom: 40px;
 		}
 
 		.card {
 			border: 0;
 			box-shadow: var(--shadow-lg);
-			border-radius: 20px;
+			border-radius: 14px;
 			overflow: hidden;
+			/* prefer compact padding over very large utility classes */
+			padding: 1.25rem !important;
 		}
 
 		.btn-success {
 			background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
 			border: none;
 			font-weight: 600;
-			padding: 0.75rem 2rem;
-			border-radius: 50px;
-			transition: all 0.3s ease;
+			padding: 0.65rem 1rem;
+			border-radius: 12px;
+			transition: all 0.18s ease;
+			font-size: 1rem;
 		}
 
 		.btn-success:hover {
@@ -224,16 +229,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		.form-control {
 			border: 2px solid #e5e7eb;
-			border-radius: 16px;
-			padding: 0.9rem 1rem;
-			transition: all 0.3s ease;
+			border-radius: 12px;
+			padding: 0.7rem 0.9rem;
+			transition: all 0.18s ease;
+			font-size: 0.95rem;
 		}
 
 		.form-label {
 			font-weight: 600;
 			color: var(--text-dark);
-			margin-bottom: 0.4rem;
-			min-height: 2.8rem;
+			margin-bottom: 0.35rem;
+			min-height: 2.4rem;
+			font-size: 0.95rem;
 		}
 
 		::placeholder {
@@ -250,18 +257,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			color: var(--primary-color);
 			font-weight: 700;
 			text-decoration: none;
-			font-size: 1.5rem;
+			font-size: 1.25rem;
 			display: inline-flex;
 			align-items: center;
 			gap: 0.5rem;
 		}
 
 		.brand i {
-			font-size: 2rem;
+			font-size: 1.6rem;
 			background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
 			background-clip: text;
+		}
+
+		/* Row controlling vertical center - let Bootstrap centering do the work and avoid hardcoded offsets */
+		.login-row {
+			/* no hard min-height to avoid overlap with fixed navbar; keeps vertical centering flexible */
+			min-height: auto;
+		}
+
+		/* Mobile / small screens adjustments */
+		@media (max-width: 576px) {
+			:root { --shadow-lg: 0 8px 16px rgba(0,0,0,0.08); }
+			.login-container { padding-top: 30px; padding-bottom: 20px; }
+			.login-row { min-height: auto; }
+			.card { padding: 1rem !important; border-radius: 12px; }
+			.brand { font-size: 1.05rem; }
+			.brand i { font-size: 1.4rem; }
+			h1.h4 { font-size: 1rem; margin-top: 0.5rem; }
+			.form-control { padding: 0.6rem 0.75rem; font-size: 0.95rem; }
+			.form-label { min-height: 2rem; font-size: 0.9rem; }
+			.btn-success { padding: 0.55rem 0.75rem; font-size: 0.95rem; border-radius: 10px; }
+			.navbar { padding: 0.5rem 0; }
+			.navbar-brand { font-size: 1.1rem; }
 		}
 	</style>
 </head>
@@ -294,14 +323,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	<!-- Login Form -->
 	<div class="login-container">
 		<div class="container">
-			<div class="row justify-content-center align-items-center" style="min-height: calc(100vh - 100px);">
+			<div class="row justify-content-center align-items-center login-row">
 				<div class="col-12 col-md-8 col-lg-6 col-xl-5">
 					<div class="text-center mb-4">
-						<a class="brand" href="<?php echo BASE_URL; ?>index.php">
-							<i class="fas fa-recycle"></i>
-							<?php echo APP_NAME; ?>
-						</a>
-						<h1 class="h4 mt-3">Welcome back</h1>
+						<h1 class="h4 mt-1">Welcome back</h1>
 						<p class="text-muted">Login to continue</p>
 					</div>
 					<div class="card p-4 p-md-5">
@@ -345,6 +370,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 	<script>
+		// Ensure the page content is not hidden behind the fixed navbar.
+		function adjustBodyForNavbar() {
+			const navbar = document.querySelector('.navbar');
+			if (!navbar) return;
+			// set body padding-top to navbar height so content starts below it
+			document.body.style.paddingTop = navbar.offsetHeight + 'px';
+			// also ensure the login-row has enough space to vertically center
+			const loginRow = document.querySelector('.login-row');
+			if (loginRow) {
+				// subtract a small delta to account for extra spacing
+				loginRow.style.minHeight = 'calc(100vh - ' + (navbar.offsetHeight + 40) + 'px)';
+			}
+		}
+		window.addEventListener('load', adjustBodyForNavbar);
+		window.addEventListener('resize', adjustBodyForNavbar);
+
 		// Navbar scroll effect
 		window.addEventListener('scroll', function() {
 			const navbar = document.querySelector('.navbar');

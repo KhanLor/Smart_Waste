@@ -247,6 +247,12 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										}
 										$isReport = (isset($n['reference_type']) && $n['reference_type'] === 'report' && !empty($n['reference_id']));
 										$reportHref = $isReport ? (BASE_URL . 'dashboard/resident/reports.php?report=' . urlencode($n['reference_id'])) : '';
+										// Collection notifications reference a collection_history.id -> link to resident collections and anchor to the history item
+										$isCollection = (isset($n['reference_type']) && $n['reference_type'] === 'collection' && !empty($n['reference_id']));
+										$collectionHref = $isCollection ? (BASE_URL . 'dashboard/resident/collections.php#history-' . urlencode($n['reference_id'])) : '';
+										// Schedule notifications reference a collection_schedules.id -> link to resident schedule page with schedule param
+										$isSchedule = (isset($n['reference_type']) && $n['reference_type'] === 'schedule' && !empty($n['reference_id']));
+										$scheduleHref = $isSchedule ? (BASE_URL . 'dashboard/resident/schedule.php?schedule=' . urlencode($n['reference_id'])) : '';
 										$isFeedback = (isset($n['reference_type']) && $n['reference_type'] === 'feedback' && !empty($n['reference_id']));
 										$feedbackHref = $isFeedback ? (BASE_URL . 'dashboard/resident/feedback.php?feedback=' . urlencode($n['reference_id'])) : '';
 									?>
@@ -258,11 +264,15 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 									?>
 									<div class="<?php echo e($typeClass); ?> notif-item">
 									<?php if ($isChat): ?>
-										<a href="<?php echo e($chatHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+										<a href="<?php echo e($chatHref); ?>" data-notif-id="<?php echo e($n['id']); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
 									<?php elseif ($isReport): ?>
-										<a href="<?php echo e($reportHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+										<a href="<?php echo e($reportHref); ?>" data-notif-id="<?php echo e($n['id']); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
 									<?php elseif ($isFeedback): ?>
-										<a href="<?php echo e($feedbackHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+										<a href="<?php echo e($feedbackHref); ?>" data-notif-id="<?php echo e($n['id']); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+									<?php elseif ($isCollection && $collectionHref): ?>
+										<a href="<?php echo e($collectionHref); ?>" data-notif-id="<?php echo e($n['id']); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
+									<?php elseif ($isSchedule && $scheduleHref): ?>
+										<a href="<?php echo e($scheduleHref); ?>" data-notif-id="<?php echo e($n['id']); ?>" class="notif-link text-decoration-none text-dark" tabindex="0">
 									<?php endif; ?>
 
 									<div class="alert notif-card <?php echo $cardClass; ?>">
@@ -273,6 +283,8 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 												<i class="fas fa-file-alt fa-lg text-primary"></i>
 											<?php elseif ($n['reference_type'] === 'feedback'): ?>
 												<i class="fas fa-comment-dots fa-lg text-success"></i>
+											<?php elseif ($n['reference_type'] === 'schedule'): ?>
+												<i class="fas fa-calendar-alt fa-lg text-warning"></i>
 											<?php else: ?>
 												<i class="fas fa-bell fa-lg text-secondary"></i>
 											<?php endif; ?>
@@ -288,8 +300,16 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 													</div>
 													<div class="notif-meta"><?php echo format_ph_date($n['created_at']); ?></div>
 												</div>
-												<div>
-													<?php if ((int)$n['is_read'] === 0): ?><span class="badge bg-danger">New</span><?php endif; ?>
+												<div class="d-flex align-items-start">
+													<div class="me-2">
+														<?php if ((int)$n['is_read'] === 0): ?><span class="badge bg-danger">New</span><?php endif; ?>
+													</div>
+													<div>
+														<!-- Delete single notification button -->
+														<button type="button" class="btn btn-sm btn-outline-secondary delete-notif-btn" data-notif-id="<?php echo e($n['id']); ?>" title="Delete notification">
+															<i class="fas fa-trash"></i>
+														</button>
+													</div>
 												</div>
 											</div>
 											<div id="notif-preview-<?php echo e($n['id']); ?>" class="mt-2 notif-preview"><?php echo e($n['message']); ?></div>
@@ -297,7 +317,7 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										</div>
 									</div>
 
-									<?php if ($isChat || $isReport || $isFeedback): ?>
+									<?php if ($isChat || $isReport || $isFeedback || $isCollection || $isSchedule): ?>
 										</a>
 									<?php endif; ?>
 									</div>
@@ -334,6 +354,77 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 				}
 			}
 		});
+	</script>
+
+	<script>
+	// Delete single notification via API and remove from DOM
+	document.addEventListener('click', function(e) {
+		var delBtn = e.target.closest && e.target.closest('.delete-notif-btn');
+		if (!delBtn) return;
+	// Prevent anchor navigation when delete button is inside a link
+	e.preventDefault();
+	// stopImmediatePropagation prevents other handlers on the same element
+	// (like the notification link click handler below) from running and
+	// causing navigation after we delete via AJAX.
+	if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+		var btn = delBtn;
+		var nid = btn.getAttribute('data-notif-id');
+		if (!nid) return;
+		if (!confirm('Delete this notification?')) return;
+		btn.disabled = true;
+		fetch('<?php echo BASE_URL; ?>api/delete_notification.php', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ notification_id: parseInt(nid, 10) })
+		}).then(r => r.json()).then(data => {
+			if (data.success && data.deleted > 0) {
+				// remove the notif-item container
+				var item = btn.closest('.notif-item');
+				if (item) item.remove();
+			} else {
+				btn.disabled = false;
+				alert('Failed to delete notification');
+			}
+		}).catch(err => { console.error(err); btn.disabled = false; alert('Error deleting notification'); });
+	});
+	</script>
+
+	<script>
+	// Intercept clicks on notification links and mark the notification read via API before navigating.
+	(function(){
+		async function markAndNavigate(e, anchor) {
+			e.preventDefault();
+			const nid = anchor.getAttribute('data-notif-id');
+			const href = anchor.getAttribute('href');
+			if (!nid) { window.location = href; return; }
+			try {
+				await fetch('<?php echo BASE_URL; ?>api/mark_notification_read.php', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ notification_id: parseInt(nid, 10) })
+				});
+			} catch (err) {
+				// ignore errors, still navigate
+				console.error('Failed to mark notification read', err);
+			}
+			// Navigate after attempting to mark as read
+			window.location = href;
+		}
+
+		document.addEventListener('click', function(ev){
+			const a = ev.target.closest && ev.target.closest('a.notif-link');
+			if (!a) return;
+			// only intercept internal links (same origin) to avoid cross-origin issues
+			const href = a.getAttribute('href');
+			if (!href) return;
+			// If href starts with http and is different origin, don't intercept
+			try {
+				const u = new URL(href, window.location.href);
+				if (u.origin !== window.location.origin) return;
+			} catch (e) { /* ignore if invalid URL */ }
+			markAndNavigate(ev, a);
+		});
+	})();
 	</script>
 </body>
 </html>

@@ -13,10 +13,19 @@ $success_message = '';
 $error_message = '';
 
 // Get user data
-$stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$user = $stmt->get_result()->fetch_assoc();
+$user = [];
+if (!empty($user_id)) {
+    $stmt = $conn->prepare("SELECT * FROM users WHERE id = ?");
+    if ($stmt === false) {
+        error_log('DB prepare failed (SELECT users): ' . $conn->error);
+    } else {
+        $stmt->bind_param("i", $user_id);
+        if ($stmt->execute()) {
+            $user = $stmt->get_result()->fetch_assoc() ?: [];
+        }
+        $stmt->close();
+    }
+}
 
 // Handle form submission
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -25,8 +34,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $description = trim($_POST['description'] ?? '');
     $location = trim($_POST['location'] ?? '');
     $priority = $_POST['priority'] ?? 'medium';
-    $latitude = $_POST['latitude'] ?? null;
-    $longitude = $_POST['longitude'] ?? null;
 
     // Validation
     if (empty($title) || empty($description) || empty($location)) {
@@ -37,11 +44,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $conn->begin_transaction();
 
             // Insert waste report
-            $stmt = $conn->prepare("
-                INSERT INTO waste_reports (user_id, report_type, title, description, location, latitude, longitude, priority, status) 
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
-            ");
-            $stmt->bind_param("issssdds", $user_id, $report_type, $title, $description, $location, $latitude, $longitude, $priority);
+            $sql = "INSERT INTO waste_reports (user_id, report_type, title, description, location, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'pending')";
+            $stmt = $conn->prepare($sql);
+            if ($stmt === false) {
+                throw new Exception('DB prepare failed (INSERT waste_reports): ' . $conn->error);
+            }
+            $stmt->bind_param("isssss", $user_id, $report_type, $title, $description, $location, $priority);
             
             if ($stmt->execute()) {
                 $report_id = $conn->insert_id;
@@ -70,9 +78,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                         INSERT INTO report_images (report_id, image_path, image_name) 
                                         VALUES (?, ?, ?)
                                     ");
+                                    if ($stmt === false) {
+                                        throw new Exception('DB prepare failed (INSERT report_images): ' . $conn->error);
+                                    }
                                     $relative_path = 'uploads/reports/' . $new_file_name;
                                     $stmt->bind_param("iss", $report_id, $relative_path, $file_name);
                                     $stmt->execute();
+                                    $stmt->close();
                                 }
                             }
                         }
@@ -88,23 +100,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     INSERT INTO points_transactions (user_id, points, transaction_type, description, reference_type, reference_id) 
                     VALUES (?, ?, 'earned', 'Report submission reward', 'report', ?)
                 ");
+                if ($stmt === false) {
+                    throw new Exception('DB prepare failed (INSERT points_transactions): ' . $conn->error);
+                }
                 $stmt->bind_param("iii", $user_id, $points, $report_id);
                 $stmt->execute();
+                $stmt->close();
 
                 // Update user's eco points
                 $stmt = $conn->prepare("UPDATE users SET eco_points = eco_points + ? WHERE id = ?");
+                if ($stmt === false) {
+                    throw new Exception('DB prepare failed (UPDATE users eco_points): ' . $conn->error);
+                }
                 $stmt->bind_param("ii", $points, $user_id);
                 $stmt->execute();
+                $stmt->close();
 
                 // Create notification for resident
                 $stmt = $conn->prepare("
                     INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) 
                     VALUES (?, ?, ?, 'success', 'report', ?)
                 ");
+                if ($stmt === false) {
+                    throw new Exception('DB prepare failed (INSERT notifications): ' . $conn->error);
+                }
                 $notification_title = 'Report Submitted Successfully';
                 $notification_message = "Your waste report '{$title}' has been submitted. You earned {$points} eco points!";
                 $stmt->bind_param("issi", $user_id, $notification_title, $notification_message, $report_id);
                 $stmt->execute();
+                $stmt->close();
 
                 // Create notifications for all authorities about the new report
                 try {
@@ -113,10 +137,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $auth_message = $resident_name . ' submitted a ' . strtoupper($priority) . ' priority ' . str_replace('_', ' ', $report_type) . ' report at ' . $location;
                     
                     $stmtAuth = $conn->prepare("SELECT id FROM users WHERE role IN ('authority', 'admin')");
+                    if ($stmtAuth === false) {
+                        throw new Exception('DB prepare failed (SELECT authorities): ' . $conn->error);
+                    }
                     $stmtAuth->execute();
                     $authorities = $stmtAuth->get_result();
                     
                     $stmtNotif = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) VALUES (?, ?, ?, 'info', 'report', ?)");
+                    if ($stmtNotif === false) {
+                        throw new Exception('DB prepare failed (INSERT notifications for authorities): ' . $conn->error);
+                    }
                     while ($auth = $authorities->fetch_assoc()) {
                         $stmtNotif->bind_param('issi', $auth['id'], $auth_title, $auth_message, $report_id);
                         $stmtNotif->execute();
@@ -276,26 +306,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                     <textarea class="form-control" id="description" name="description" rows="4" placeholder="Provide detailed information about the issue..." required></textarea>
                                 </div>
 
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="location" class="form-label">Location <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control" id="location" name="location" placeholder="Street address or landmark" required>
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label for="phone" class="form-label">Contact Phone (Optional)</label>
-                                        <input type="tel" class="form-control" id="phone" name="phone" placeholder="Your contact number">
-                                    </div>
-                                </div>
-
-                                <div class="row">
-                                    <div class="col-md-6 mb-3">
-                                        <label for="latitude" class="form-label">Latitude (Optional)</label>
-                                        <input type="number" class="form-control" id="latitude" name="latitude" step="any" placeholder="GPS latitude">
-                                    </div>
-                                    <div class="col-md-6 mb-3">
-                                        <label for="longitude" class="form-label">Longitude (Optional)</label>
-                                        <input type="number" class="form-control" id="longitude" name="longitude" step="any" placeholder="GPS longitude">
-                                    </div>
+                                <div class="mb-3">
+                                    <label for="location" class="form-label">Location <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="location" name="location" placeholder="Street address or landmark" required>
                                 </div>
 
                                 <div class="mb-3">

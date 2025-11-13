@@ -44,7 +44,14 @@ try {
     $stmt->execute();
     $today_missed = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
 
-    $today_remaining = max(0, $today_assigned - $today_completed - $today_missed);
+    // Cancelled today from collection_history
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM collection_history WHERE collector_id = ? AND status = 'cancelled' AND collection_date BETWEEN ? AND ?");
+    $stmt->bind_param('iss', $collector_id, $today_start, $today_end);
+    $stmt->execute();
+    $today_cancelled = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
+
+    // Remaining should subtract completed, missed, and cancelled recorded today
+    $today_remaining = max(0, $today_assigned - $today_completed - $today_missed - $today_cancelled);
 
     // 30-day totals
     $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM collection_history WHERE collector_id = ? AND collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)");
@@ -57,17 +64,25 @@ try {
     $stmt->execute();
     $last30_completed = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
 
+    // Cancelled in last 30 days
+    $stmt = $conn->prepare("SELECT COUNT(*) AS total FROM collection_history WHERE collector_id = ? AND status = 'cancelled' AND collection_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)");
+    $stmt->bind_param('i', $collector_id);
+    $stmt->execute();
+    $last30_cancelled = (int)($stmt->get_result()->fetch_assoc()['total'] ?? 0);
+
     echo json_encode([
         'success' => true,
         'today' => [
             'assigned' => $today_assigned,
             'completed' => $today_completed,
             'missed' => $today_missed,
+            'cancelled' => $today_cancelled,
             'remaining' => $today_remaining,
         ],
         'last_30_days' => [
             'total' => $last30_total,
             'completed' => $last30_completed,
+            'cancelled' => $last30_cancelled,
         ],
     ]);
 } catch (Exception $e) {

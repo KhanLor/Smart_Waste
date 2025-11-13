@@ -27,9 +27,26 @@ function validate_registration_input(array $input): array {
 	if (!preg_match('/[^A-Za-z0-9]/', $password)) { $errors[] = 'Password must include at least one special character.'; }
 	if ($confirm_password === '' || $password !== $confirm_password) { $errors[] = 'Passwords do not match.'; }
 	if ($address === '') { $errors[] = 'Address is required.'; }
-	// Phone: required and basic validation (allows +, digits, spaces, parentheses, hyphens)
-	if ($phone === '') { $errors[] = 'Phone is required.'; }
-	elseif (!preg_match('/^[+0-9 ()-]{7,20}$/', $phone)) { $errors[] = 'Phone number is invalid.'; }
+	// Phone: required. Ensure no letters and accept either Philippine international (+63XXXXXXXXXX)
+	// or an 11-digit local number (e.g. 09123456789). Normalize formatting for storage.
+	if ($phone === '') { 
+		$errors[] = 'Phone is required.'; 
+	} else {
+		// Reject any letters immediately
+		if (preg_match('/[A-Za-z]/', $phone)) {
+			$errors[] = 'Phone number must not contain letters.';
+		} else {
+			// Remove common formatting characters (spaces, hyphens, parentheses)
+			$normalized = preg_replace('/[ \-()]/', '', $phone);
+			// Accept +63 followed by 10 digits OR exactly 11 digits (local format)
+			if (!preg_match('/^\+63\d{10}$/', $normalized) && !preg_match('/^\d{11}$/', $normalized)) {
+				$errors[] = 'Phone must be a Philippine number (e.g., +639123456789) or 11 digits (e.g., 09123456789).';
+			} else {
+				// Store normalized phone (keep + if present)
+				$phone = $normalized;
+			}
+		}
+	}
 	if (!$accepted_terms) { $errors[] = 'You must accept the Terms and Conditions.'; }
 
 	return [$errors, $first_name, $middle_name, $last_name, $username, $email, $password, $address, $phone];
@@ -243,23 +260,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 		/* Register Form Styles */
 		.register-container {
 			min-height: 100vh;
-			padding-top: 100px;
+			/* small internal offset; actual top spacing is driven by JS setting body padding to navbar height */
+			padding-top: 20px;
+			padding-bottom: 40px;
 		}
 
 		.card {
 			border: 0;
 			box-shadow: var(--shadow-lg);
-			border-radius: 20px;
+			border-radius: 14px;
 			overflow: hidden;
+			padding: 1.25rem !important;
 		}
 
 		.btn-success {
 			background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
 			border: none;
 			font-weight: 600;
-			padding: 0.75rem 2rem;
-			border-radius: 50px;
-			transition: all 0.3s ease;
+			padding: 0.65rem 1rem;
+			border-radius: 12px;
+			transition: all 0.18s ease;
+			font-size: 1rem;
 		}
 
 		.btn-success:hover {
@@ -270,17 +291,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 		.form-control {
 			border: 2px solid #e5e7eb;
-			border-radius: 16px;
-			padding: 0.9rem 1rem;
-			transition: all 0.3s ease;
+			border-radius: 12px;
+			padding: 0.7rem 0.9rem;
+			transition: all 0.18s ease;
+			font-size: 0.95rem;
 		}
 
 		.form-label {
 			font-weight: 600;
 			color: var(--text-dark);
-			margin-bottom: 0.4rem;
+			margin-bottom: 0.35rem;
 			/* Ensure labels that wrap to two lines don't push inputs out of alignment */
-			min-height: 3.2rem;
+			min-height: 2.4rem;
+			font-size: 0.95rem;
 		}
 
 		/* Make the two-column form cells predictable: stack label and input vertically */
@@ -308,18 +331,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 			color: var(--primary-color);
 			font-weight: 700;
 			text-decoration: none;
-			font-size: 1.5rem;
+			font-size: 1.25rem;
 			display: inline-flex;
 			align-items: center;
 			gap: 0.5rem;
 		}
 
 		.brand i {
-			font-size: 2rem;
+			font-size: 1.6rem;
 			background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
 			-webkit-background-clip: text;
 			-webkit-text-fill-color: transparent;
 			background-clip: text;
+		}
+
+		/* Row controlling vertical center - let Bootstrap centering do the work and avoid hardcoded offsets */
+		.register-row { min-height: auto; }
+
+		/* Mobile / small screens adjustments */
+		@media (max-width: 576px) {
+			:root { --shadow-lg: 0 8px 16px rgba(0,0,0,0.08); }
+			.register-container { padding-top: 30px; padding-bottom: 20px; }
+			.register-row { min-height: auto; }
+			.card { padding: 1rem !important; border-radius: 12px; }
+			.brand { font-size: 1.05rem; }
+			.brand i { font-size: 1.4rem; }
+			h1.h4 { font-size: 1rem; margin-top: 0.5rem; }
+			.form-control { padding: 0.6rem 0.75rem; font-size: 0.95rem; }
+			.form-label { min-height: 2rem; font-size: 0.9rem; }
+			.btn-success { padding: 0.55rem 0.75rem; font-size: 0.95rem; border-radius: 10px; }
+			.navbar { padding: 0.5rem 0; }
+			.navbar-brand { font-size: 1.1rem; }
 		}
 
 		.form-check-input:checked {
@@ -357,14 +399,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 	<!-- Register Form -->
 	<div class="register-container">
 		<div class="container">
-			<div class="row justify-content-center align-items-center" style="min-height: calc(100vh - 100px);">
+			<div class="row justify-content-center align-items-center register-row">
 				<div class="col-12 col-md-8 col-lg-6 col-xl-5">
 					<div class="text-center mb-4">
-						<a class="brand" href="<?php echo BASE_URL; ?>index.php">
-							<i class="fas fa-recycle"></i>
-							<?php echo APP_NAME; ?>
-						</a>
-						<h1 class="h4 mt-3">Create your account</h1>
+						<h1 class="h4 mt-1">Create your account</h1>
 						<p class="text-muted">Join our eco-friendly community</p>
 					</div>
 					<div class="card p-4 p-md-5">
@@ -403,7 +441,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 						</div>
 						<div class="mb-3">
 							<label class="form-label">Phone</label>
-							<input type="text" name="phone" class="form-control form-control-lg" placeholder="+63 912 345 6789" value="<?php echo e($_POST['phone'] ?? ''); ?>" required>
+							<input type="tel" name="phone" inputmode="tel" pattern="(\+63\d{10}|\d{11})" class="form-control form-control-lg" placeholder="+63 912 345 6789" value="<?php echo e($_POST['phone'] ?? ''); ?>" required oninput="sanitizePhone(this)">
+							<div class="form-text text-muted">Accepts Philippine numbers only: <strong>+63XXXXXXXXXX</strong> or exactly <strong>11 digits</strong> (e.g. 09123456789). Letters are not allowed.</div>
 						</div>
 						<div class="mb-3">
 							<label class="form-label">Password</label>
@@ -445,6 +484,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 	<script>
+		// Ensure the page content is not hidden behind the fixed navbar.
+		function adjustBodyForNavbarRegister() {
+			const navbar = document.querySelector('.navbar');
+			if (!navbar) return;
+			// set body padding-top to navbar height so content starts below it
+			document.body.style.paddingTop = navbar.offsetHeight + 'px';
+			// also ensure the register-row has enough space to vertically center
+			const registerRow = document.querySelector('.register-row');
+			if (registerRow) {
+				registerRow.style.minHeight = 'calc(100vh - ' + (navbar.offsetHeight + 40) + 'px)';
+			}
+		}
+		window.addEventListener('load', adjustBodyForNavbarRegister);
+		window.addEventListener('resize', adjustBodyForNavbarRegister);
 		// Navbar scroll effect
 		window.addEventListener('scroll', function() {
 			const navbar = document.querySelector('.navbar');
@@ -493,6 +546,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 				};
 				return escape[match];
 			});
+		}
+
+		// Remove letters and disallowed characters from phone input as user types
+		function sanitizePhone(el) {
+			let v = el.value || '';
+			// Remove letters
+			v = v.replace(/[A-Za-z]/g, '');
+			// Allow only +, digits, spaces, hyphens and parentheses
+			v = v.replace(/[^+\d\s\-()]/g, '');
+			// Trim leading/trailing spaces
+			v = v.trim();
+			el.value = v;
 		}
 	</script>
 </body>

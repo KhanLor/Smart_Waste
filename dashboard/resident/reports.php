@@ -12,6 +12,20 @@ $user_id = $_SESSION['user_id'] ?? null;
 $success_message = '';
 $error_message = '';
 
+// Handle redirect flash for delete action (PRG)
+if (isset($_GET['deleted'])) {
+    if ($_GET['deleted'] == '1') {
+        $success_message = 'Report deleted successfully.';
+    } else {
+        // show error from query param if present
+        if (!empty($_GET['err'])) {
+            $error_message = rawurldecode($_GET['err']);
+        } else {
+            $error_message = 'An error occurred while deleting the report.';
+        }
+    }
+}
+
 // Handle report actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     if ($_POST['action'] === 'delete_report') {
@@ -19,31 +33,87 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         
         if ($report_id) {
             try {
-                // Check if report belongs to user
-                $stmt = $conn->prepare("SELECT id FROM waste_reports WHERE id = ? AND user_id = ?");
+                // Check if report belongs to user and get title for notification
+                $stmt = $conn->prepare("SELECT title FROM waste_reports WHERE id = ? AND user_id = ?");
+                if ($stmt === false) {
+                    throw new Exception('DB prepare failed (SELECT waste_reports): ' . $conn->error);
+                }
                 $stmt->bind_param("ii", $report_id, $user_id);
                 $stmt->execute();
-                
-                if ($stmt->get_result()->num_rows > 0) {
+                $res = $stmt->get_result();
+                $report_row = $res->fetch_assoc();
+                $stmt->close();
+
+                if ($report_row) {
+                    $report_title = $report_row['title'];
+
                     // Delete report images first
                     $stmt = $conn->prepare("DELETE FROM report_images WHERE report_id = ?");
+                    if ($stmt === false) {
+                        throw new Exception('DB prepare failed (DELETE report_images): ' . $conn->error);
+                    }
                     $stmt->bind_param("i", $report_id);
                     $stmt->execute();
-                    
+                    $stmt->close();
+
                     // Delete the report
                     $stmt = $conn->prepare("DELETE FROM waste_reports WHERE id = ? AND user_id = ?");
+                    if ($stmt === false) {
+                        throw new Exception('DB prepare failed (DELETE waste_reports): ' . $conn->error);
+                    }
                     $stmt->bind_param("ii", $report_id, $user_id);
                     
                     if ($stmt->execute()) {
-                        $success_message = 'Report deleted successfully.';
+                        $stmt->close();
+
+                        // Notify authorities that a resident deleted a report
+                        try {
+                            $auth_select = $conn->prepare("SELECT id FROM users WHERE role IN ('authority', 'admin')");
+                            if ($auth_select === false) {
+                                throw new Exception('DB prepare failed (SELECT authorities): ' . $conn->error);
+                            }
+                            $auth_select->execute();
+                            $authorities = $auth_select->get_result();
+
+                            $notif_stmt = $conn->prepare("INSERT INTO notifications (user_id, title, message, type, reference_type, reference_id) VALUES (?, ?, ?, 'info', 'report', ?)");
+                            if ($notif_stmt === false) {
+                                throw new Exception('DB prepare failed (INSERT notifications): ' . $conn->error);
+                            }
+
+                            $notif_title = 'Report Deleted by Resident';
+                            $notif_message = "A resident deleted the report '{$report_title}' (ID: {$report_id}).";
+
+                            while ($auth = $authorities->fetch_assoc()) {
+                                $notif_stmt->bind_param('issi', $auth['id'], $notif_title, $notif_message, $report_id);
+                                $notif_stmt->execute();
+                            }
+
+                            $notif_stmt->close();
+                            $auth_select->close();
+                        } catch (Exception $ex) {
+                            // Log but do not fail the deletion
+                            error_log('Failed to notify authorities on report delete: ' . $ex->getMessage());
+                        }
+
+                        // Redirect to avoid form resubmission on page reload (PRG pattern)
+                        $qs = $_SERVER['QUERY_STRING'] ?? '';
+                        $qs = $qs ? $qs . '&' : '';
+                        header('Location: ' . $_SERVER['PHP_SELF'] . '?' . $qs . 'deleted=1');
+                        exit;
                     } else {
+                        $stmt->close();
                         throw new Exception('Failed to delete report.');
                     }
                 } else {
                     throw new Exception('Report not found or access denied.');
                 }
             } catch (Exception $e) {
-                $error_message = 'Error deleting report: ' . $e->getMessage();
+                // Redirect with error to avoid resubmit; include message safely
+                $err = rawurlencode($e->getMessage());
+                $qs = $_SERVER['QUERY_STRING'] ?? '';
+                $qs = $qs ? $qs . '&' : '';
+                header('Location: ' . $_SERVER['PHP_SELF'] . '?' . $qs . 'deleted=0&err=' . $err);
+                exit;
             }
         }
     }
