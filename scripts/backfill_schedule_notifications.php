@@ -27,9 +27,13 @@ while ($row = $res->fetch_assoc()) {
     $street = trim((string)$row['street_name']);
     $day = strtolower((string)$row['collection_day']);
     $time = (string)$row['collection_time'];
+    // Format time to 12-hour for user-facing messages
+    $display_time = $time;
+    $tst = strtotime("1970-01-01 $time");
+    if ($tst !== false) { $display_time = date('g:i A', $tst); }
 
     $title = $row['updated_at'] && $row['updated_at'] > $row['created_at'] ? 'Collection Schedule Updated' : 'New Collection Scheduled';
-    $message = sprintf('%s on %s at %s', $street, ucfirst($day), $time);
+    $message = sprintf('%s on %s at %s', $street, ucfirst($day), $display_time);
 
     // Find residents whose address matches
     $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");

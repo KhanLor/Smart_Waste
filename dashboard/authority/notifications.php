@@ -218,6 +218,7 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										// Collection notifications reference collection_history.id. For authorities, link to schedule activity modal by resolving schedule_id
 										$isCollection = (isset($n['reference_type']) && $n['reference_type'] === 'collection' && !empty($n['reference_id']));
 										$collectionOnclick = '';
+										$scheduleId = '';
 										if ($isCollection) {
 											try {
 												$chStmt = $conn->prepare("SELECT schedule_id FROM collection_history WHERE id = ? LIMIT 1");
@@ -226,11 +227,12 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 													$chStmt->execute();
 													$chRow = $chStmt->get_result()->fetch_assoc();
 													$chStmt->close();
-														if ($chRow && !empty($chRow['schedule_id'])) {
-															$sid = (int)$chRow['schedule_id'];
-															// Guard against clicks originating from the delete button inside the link.
-															// Inline onclick executes before document bubble handlers, so check event.target here.
-															$collectionOnclick = "if (event && event.target && event.target.closest && event.target.closest('.delete-notif-btn')) return; viewScheduleActivity(" . $sid . ")";
+																						if ($chRow && !empty($chRow['schedule_id'])) {
+																							$sid = (int)$chRow['schedule_id'];
+																							$scheduleId = $sid;
+																							// Guard against clicks originating from the delete button inside the link.
+																							// Inline onclick executes before document bubble handlers, so check event.target here.
+																							$collectionOnclick = "if (event && event.target && event.target.closest && event.target.closest('.delete-notif-btn')) return; viewScheduleActivity(" . $sid . ")";
 														}
 												}
 											} catch (Exception $e) { /* ignore */ }
@@ -242,7 +244,7 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 										$typeClass = 'notif-type-' . ($n['reference_type'] ?? 'other');
 										$typeLabel = $n['reference_type'] ? ucfirst($n['reference_type']) : '';
 									?>
-									<div class="<?php echo e($typeClass); ?> notif-item">
+									<div class="<?php echo e($typeClass); ?> notif-item" data-notif-id="<?php echo e($n['id']); ?>" data-ref-type="<?php echo e($n['reference_type'] ?? ''); ?>"<?php if(!empty($scheduleId)): ?> data-schedule-id="<?php echo e($scheduleId); ?>"<?php endif; ?><?php if($isReport && !empty($n['reference_id'])): ?> data-report-id="<?php echo e($n['reference_id']); ?>"<?php endif; ?>>
 									<?php if ($isChat && $chatHref): ?>
 											<a href="<?php echo e($chatHref); ?>" class="notif-link text-decoration-none text-dark" tabindex="0" data-notif-id="<?php echo e($n['id']); ?>" data-ref-type="chat">
 										<?php elseif ($isReport && $reportHref): ?>
@@ -498,6 +500,85 @@ $unread_count = (int)($unread_row['cnt'] ?? 0);
 			delAllForm.submit();
 		});
 	})();
+	</script>
+
+	<!-- Notification View Modal (opens when clicking a notif card without a dedicated link) -->
+	<div class="modal fade" id="notifViewModal" tabindex="-1" aria-labelledby="notifViewModalLabel" aria-hidden="true">
+		<div class="modal-dialog modal-lg">
+			<div class="modal-content">
+				<div class="modal-header">
+					<h5 class="modal-title" id="notifViewModalLabel">Notification</h5>
+					<button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+				</div>
+				<div class="modal-body">
+					<h5 id="notifViewTitle" class="mb-2"></h5>
+					<div class="text-muted small mb-2" id="notifViewMeta"></div>
+					<div id="notifViewBody"></div>
+				</div>
+				<div class="modal-footer">
+					<button type="button" id="notifViewOpenBtn" class="btn btn-primary" style="display:none;">Open</button>
+					<button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+				</div>
+			</div>
+		</div>
+	</div>
+
+	<script>
+	// Open a modal with notification details when a notif card is clicked (only when there is no .notif-link)
+	document.addEventListener('click', function(e) {
+		// Don't interfere with delete button, expand button, or links
+		if (e.target && e.target.closest && e.target.closest('.delete-notif-btn')) return;
+		if (e.target && e.target.classList && e.target.classList.contains('notif-expand')) return;
+		var item = e.target && e.target.closest && e.target.closest('.notif-item');
+		if (!item) return;
+		// If there's a dedicated anchor wrapper, skip (we want the anchor click handler to run)
+		if (item.querySelector && item.querySelector('.notif-link')) return;
+		// Only handle left-click
+		if (e.button !== 0) return;
+		// prepare modal content
+		var nid = item.getAttribute('data-notif-id');
+		var scheduleId = item.getAttribute('data-schedule-id');
+		var reportId = item.getAttribute('data-report-id');
+		var titleEl = item.querySelector('.notif-title');
+		var previewEl = item.querySelector('.notif-preview');
+		var metaEl = item.querySelector('.notif-meta');
+		var title = titleEl ? titleEl.innerText.trim() : '';
+		var msg = previewEl ? previewEl.innerText.trim() : '';
+		var meta = metaEl ? metaEl.innerText.trim() : '';
+		document.getElementById('notifViewTitle').textContent = title;
+		document.getElementById('notifViewBody').textContent = msg;
+		document.getElementById('notifViewMeta').textContent = meta;
+		var openBtn = document.getElementById('notifViewOpenBtn');
+		openBtn.style.display = 'none'; openBtn.onclick = null;
+		if (scheduleId) {
+			openBtn.style.display = 'inline-block';
+			openBtn.textContent = 'View activity';
+			openBtn.onclick = function(){
+				var m = bootstrap.Modal.getInstance(document.getElementById('notifViewModal'));
+				if (m) m.hide();
+				if (typeof viewScheduleActivity === 'function') viewScheduleActivity(scheduleId);
+			};
+		} else if (reportId) {
+			openBtn.style.display = 'inline-block';
+			openBtn.textContent = 'Open report';
+			openBtn.onclick = function(){
+				window.location.href = '<?php echo BASE_URL; ?>dashboard/authority/reports.php?report=' + encodeURIComponent(reportId);
+			};
+		}
+		var modalEl = document.getElementById('notifViewModal');
+		var modal = new bootstrap.Modal(modalEl);
+		modal.show();
+		// mark as read (best-effort)
+		if (nid) {
+			fetch('<?php echo BASE_URL; ?>api/mark_notification_read.php', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ notification_id: parseInt(nid, 10) })
+			}).then(r => r.json()).then(function(data){
+				try { var bad = item.querySelector('.badge.bg-danger'); if (bad) bad.remove(); } catch(e) {}
+			}).catch(function(){});
+		}
+	});
 	</script>
 
 	<!-- Schedule Activity Modal (used when clicking collection notifications) -->

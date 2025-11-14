@@ -49,7 +49,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // Fan-out in-app notifications to residents whose address matches street or area
                     try {
                         $notif_title = 'New Collection Scheduled';
-                        $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst(strtolower($collection_day)), $collection_time);
+                        // Format time for user-facing messages
+                        $display_time = $collection_time;
+                        $_ts = strtotime("1970-01-01 $collection_time");
+                        if ($_ts !== false) { $display_time = date('g:i A', $_ts); }
+                        $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst(strtolower($collection_day)), $display_time);
                         $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
                         $likeStreet = '%' . $street_name . '%';
                         $likeArea = '%' . $area . '%';
@@ -137,7 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // Fan-out in-app notifications to residents whose address matches street or area
                     try {
                         $notif_title = 'Collection Schedule Updated';
-                        $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst(strtolower($collection_day)), $collection_time);
+                        // Format time for user-facing messages
+                        $display_time = $collection_time;
+                        $_ts = strtotime("1970-01-01 $collection_time");
+                        if ($_ts !== false) { $display_time = date('g:i A', $_ts); }
+                        $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst(strtolower($collection_day)), $display_time);
                         $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
                         $likeStreet = '%' . $street_name . '%';
                         $likeArea = '%' . $area . '%';

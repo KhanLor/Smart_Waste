@@ -87,7 +87,13 @@ try {
 
     // Persist in-app notifications for matched residents (fan-out per user for unread badges)
     $notif_title = 'New Collection Scheduled';
-    $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst($collection_day), $collection_time);
+    // Format collection time to 12-hour format for user-facing messages (e.g. 1:00 PM)
+    $display_time = $collection_time;
+    $ts = strtotime("1970-01-01 $collection_time");
+    if ($ts !== false) {
+        $display_time = date('g:i A', $ts);
+    }
+    $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst($collection_day), $display_time);
 
     // Find residents whose address matches the street or area
     $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
@@ -117,9 +123,9 @@ try {
         $stmtJ->execute();
     }
 
-    // Queue an area-wide job (web push)
+    // Queue an area-wide job (web push) - use formatted display time here too
     $t = 'area'; $v = $area;
-    $stmtJ->bind_param('sssss', $t, $v, $notif_title, "Collection scheduled for {$street_name} on " . ucfirst($collection_day) . " at {$collection_time}", $payload);
+    $stmtJ->bind_param('sssss', $t, $v, $notif_title, "Collection scheduled for {$street_name} on " . ucfirst($collection_day) . " at {$display_time}", $payload);
     $stmtJ->execute();
     $stmtJ->close();
 

@@ -86,7 +86,13 @@ try {
 
     // Persist in-app notifications per resident (fan-out) and queue notification jobs
     $notif_title = 'Collection Schedule Updated';
-    $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst($collection_day), $collection_time);
+    // Format display time to 12-hour for notifications
+    $display_time = $collection_time;
+    $ts = strtotime("1970-01-01 $collection_time");
+    if ($ts !== false) {
+        $display_time = date('g:i A', $ts);
+    }
+    $notif_message = sprintf('%s on %s at %s', $street_name, ucfirst($collection_day), $display_time);
 
     // Find residents whose address matches the street or area
     $stmtU = $conn->prepare("SELECT id FROM users WHERE role = 'resident' AND (address LIKE ? OR address LIKE ?)");
@@ -125,9 +131,9 @@ try {
         $stmtJ->execute();
     }
 
-    // Area-wide job (web push)
+    // Area-wide job (web push) - use formatted display time
     $t = 'area'; $v = $area;
-    $stmtJ->bind_param('sssss', $t, $v, $notif_title, "Collection updated for {$street_name} on " . ucfirst($collection_day) . " at {$collection_time}", $payload);
+    $stmtJ->bind_param('sssss', $t, $v, $notif_title, "Collection updated for {$street_name} on " . ucfirst($collection_day) . " at {$display_time}", $payload);
     $stmtJ->execute();
     $stmtJ->close();
 
