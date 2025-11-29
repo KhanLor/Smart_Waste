@@ -54,6 +54,20 @@ $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $notifications = $stmt->get_result();
 $unread_count = $notifications ? $notifications->num_rows : 0;
+
+// Determine nearby available trucks: sum of num_trucks for collectors assigned to schedules matching resident address and active
+$truck_total = 0;
+try {
+    $stmt = $conn->prepare("SELECT COALESCE(SUM(u.num_trucks),0) as total_trucks FROM users u JOIN collection_schedules cs ON u.id = cs.assigned_collector WHERE (cs.street_name LIKE ? OR cs.area LIKE ?) AND u.role = 'collector' AND cs.status = 'active' AND u.num_trucks > 0");
+    $stmt->bind_param("ss", $address_search, $address_search);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($res) {
+        $truck_total = (int)($res->fetch_assoc()['total_trucks'] ?? 0);
+    }
+} catch (Exception $e) {
+    // fail silently, $truck_total remains 0
+}
 ?>
 
 <!DOCTYPE html>
@@ -127,6 +141,25 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
         .report-item.low {
             border-left-color: #28a745;
         }
+        /* Waste segregation promo styles */
+        .seg-card {
+            border-radius: 10px;
+            box-shadow: none;
+            align-items: center;
+        }
+        .seg-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 18px;
+        }
+        .seg-icon.organic { background: linear-gradient(135deg,#28a745,#20c997); }
+        .seg-icon.recycle { background: linear-gradient(135deg,#0d6efd,#0069d9); }
+        .seg-icon.hazardous { background: linear-gradient(135deg,#dc3545,#e67700); }
         /* Mobile responsiveness tweaks */
         @media (max-width: 767.98px) {
             .container-fluid { padding-left: 10px; padding-right: 10px; }
@@ -134,7 +167,7 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
             .card { border-radius: 12px; }
             .stat-card .card-body { padding: 12px; }
             /* Make stat cards full width on small screens */
-            .row.mb-4 > .col-md-4 { flex: 0 0 100%; max-width: 100%; }
+            .row.mb-4 > .col-md-4, .row.mb-4 > .col-md-3 { flex: 0 0 100%; max-width: 100%; }
             /* Quick action buttons: ensure they stack and fill width */
             .row.mb-4 .card .row > .col-md-3 { flex: 0 0 50%; max-width: 50%; }
             @media (max-width: 420px) {
@@ -182,7 +215,7 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
 
                     <!-- Statistics Cards -->
                     <div class="row mb-4">
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <div class="card stat-card">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -201,7 +234,7 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
                             <div class="card stat-card warning">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -215,7 +248,26 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
                                 </div>
                             </div>
                         </div>
-                        <div class="col-md-4 mb-3">
+                        <div class="col-md-3 mb-3">
+                            <div class="card stat-card" style="background: linear-gradient(135deg,#6f42c1,#4f2d8a);">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h6 class="mb-1">Truck Available</h6>
+                                            <?php if ($truck_total > 0): ?>
+                                                <h4 class="mb-0"><?php echo $truck_total; ?></h4>
+                                                <small>truck(s) nearby</small>
+                                            <?php else: ?>
+                                                <h4 class="mb-0">No Trucks</h4>
+                                                <small class="text-muted">No trucks assigned</small>
+                                            <?php endif; ?>
+                                        </div>
+                                        <i class="fas fa-truck-moving fa-2x opacity-75"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3 mb-3">
                             <div class="card stat-card success">
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between align-items-center">
@@ -225,6 +277,67 @@ $unread_count = $notifications ? $notifications->num_rows : 0;
                                             <small>Keep earning!</small>
                                         </div>
                                         <i class="fas fa-leaf fa-2x opacity-75"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Waste Segregation Promotion -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <div class="card" aria-label="Waste Segregation Promotion">
+                                <div class="card-body p-3">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <div>
+                                            <h5 class="mb-1">Waste Segregation</h5>
+                                            <p class="text-muted mb-0">Keep your community clean — sort your waste into the right bins.</p>
+                                        </div>
+                                        <a href="segregation_tips.php" class="btn btn-outline-success ms-3 d-none d-md-inline">Learn More</a>
+                                    </div>
+                                    <div class="row mt-3 g-2">
+                                        <div class="col-sm-4 col-12">
+                                            <div class="seg-card bg-light p-3 d-flex align-items-center">
+                                                        <div class="seg-icon organic me-3">
+                                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                                <path d="M3 21c6-6 8-13 18-18-2 10-9 12-15 18l-3 0z" fill="currentColor" />
+                                                            </svg>
+                                                        </div>
+                                                <div>
+                                                    <strong>Organic</strong>
+                                                    <div class="text-muted small">Food scraps &amp; garden waste</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-4 col-12">
+                                            <div class="seg-card bg-light p-3 d-flex align-items-center">
+                                                <div class="seg-icon recycle me-3">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                        <path d="M21 6h-6l2.29-2.29-1.42-1.42L12 6l3.87 3.71 1.42-1.42L15 8h6V6zM3 18h6l-2.29 2.29 1.42 1.42L12 18l-3.87-3.71-1.42 1.42L9 16H3v2z" fill="currentColor" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <strong>Recyclables</strong>
+                                                    <div class="text-muted small">Paper, plastic, metal, glass</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-sm-4 col-12">
+                                            <div class="seg-card bg-light p-3 d-flex align-items-center">
+                                                <div class="seg-icon hazardous me-3">
+                                                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                                                        <path d="M12 2a2 2 0 100 4 2 2 0 000-4zm4.93 4.36a7 7 0 00-9.86 0l-1.06-1.06A9 9 0 0112 1a9 9 0 017.99 4.3l-1.06 1.06zM4.26 7.06L3.2 8.12A9 9 0 0012 23a9 9 0 008.8-14.88l-1.06-1.06A7 7 0 004.26 7.06z" fill="currentColor" />
+                                                    </svg>
+                                                </div>
+                                                <div>
+                                                    <strong>Hazardous</strong>
+                                                    <div class="text-muted small">Batteries, chemicals, electronics</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="text-center mt-3 d-md-none">
+                                        <a href="segregation_tips.php" class="btn btn-outline-success btn-sm">Learn More</a>
                                     </div>
                                 </div>
                             </div>

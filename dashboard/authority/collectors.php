@@ -23,6 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $phone = trim($_POST['phone'] ?? '');
         $address = trim($_POST['address'] ?? '');
         $password = $_POST['password'] ?? '';
+        $num_trucks = isset($_POST['num_trucks']) && $_POST['num_trucks'] !== '' ? intval($_POST['num_trucks']) : 0;
+        $truck_equipment = trim($_POST['truck_equipment'] ?? '');
 
         // Validation
         if (empty($username) || empty($first_name) || empty($last_name) || empty($email) || empty($address) || empty($password)) {
@@ -50,10 +52,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     
                     // Insert collector and mark email as verified (authority-created)
                     $stmt = $conn->prepare("
-                        INSERT INTO users (username, first_name, middle_name, last_name, email, password, role, address, phone, email_verified_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, 'collector', ?, ?, NOW())
+                        INSERT INTO users (username, first_name, middle_name, last_name, email, password, role, address, phone, num_trucks, truck_equipment, email_verified_at) 
+                        VALUES (?, ?, ?, ?, ?, ?, 'collector', ?, ?, ?, ?, NOW())
                     ");
-                    $stmt->bind_param("ssssssss", $username, $first_name, $middle_name, $last_name, $email, $hashed_password, $address, $phone);
+                    $stmt->bind_param("ssssssssis", $username, $first_name, $middle_name, $last_name, $email, $hashed_password, $address, $phone, $num_trucks, $truck_equipment);
                     
                     if ($stmt->execute()) {
                         $success_message = 'Collector added successfully.';
@@ -73,6 +75,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $email = trim($_POST['email'] ?? '');
         $phone = trim($_POST['phone'] ?? '');
         $address = trim($_POST['address'] ?? '');
+        $num_trucks = isset($_POST['num_trucks']) && $_POST['num_trucks'] !== '' ? intval($_POST['num_trucks']) : 0;
+        $truck_equipment = trim($_POST['truck_equipment'] ?? '');
 
         if ($collector_id && !empty($first_name) && !empty($last_name) && !empty($email) && !empty($address)) {
             try {
@@ -87,10 +91,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     // Update collector
                     $stmt = $conn->prepare("
                         UPDATE users 
-                        SET first_name = ?, middle_name = ?, last_name = ?, email = ?, phone = ?, address = ?, updated_at = CURRENT_TIMESTAMP
+                        SET first_name = ?, middle_name = ?, last_name = ?, email = ?, phone = ?, address = ?, num_trucks = ?, truck_equipment = ?, updated_at = CURRENT_TIMESTAMP
                         WHERE id = ? AND role = 'collector'
                     ");
-                    $stmt->bind_param("ssssssi", $first_name, $middle_name, $last_name, $email, $phone, $address, $collector_id);
+                    $stmt->bind_param("ssssssisi", $first_name, $middle_name, $last_name, $email, $phone, $address, $num_trucks, $truck_equipment, $collector_id);
                     
                     if ($stmt->execute()) {
                         $success_message = 'Collector updated successfully.';
@@ -463,6 +467,19 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
                                                     <i class="fas fa-map-marker-alt me-1"></i><?php echo e($collector['address']); ?>
                                                 </small>
                                             </div>
+                                            <?php if (!empty($collector['num_trucks']) || !empty($collector['truck_equipment'])): ?>
+                                                <div class="mb-2">
+                                                    <small class="text-muted">
+                                                        <i class="fas fa-truck me-1"></i>
+                                                        <?php if (!empty($collector['num_trucks'])): ?>
+                                                            <?php echo (int)$collector['num_trucks']; ?> truck(s)
+                                                            <?php if (!empty($collector['truck_equipment'])): ?> — <?php echo e($collector['truck_equipment']); ?><?php endif; ?>
+                                                        <?php else: ?>
+                                                            <?php echo e($collector['truck_equipment']); ?>
+                                                        <?php endif; ?>
+                                                    </small>
+                                                </div>
+                                            <?php endif; ?>
                                             
                                             <div class="row text-center">
                                                 <div class="col-6">
@@ -594,6 +611,17 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
                             <textarea id="address" name="address" class="form-control" rows="3" required></textarea>
                         </div>
 
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="num_trucks" class="form-label">Number of trucks</label>
+                                <input type="number" id="num_trucks" name="num_trucks" class="form-control" min="0" value="0">
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label for="truck_equipment" class="form-label">Truck equipment / notes</label>
+                                <input type="text" id="truck_equipment" name="truck_equipment" class="form-control" placeholder="e.g. 2x compactor trucks, 1x open bed">
+                            </div>
+                        </div>
+
                         <div class="mb-3">
                             <label for="profile_image" class="form-label">Profile image (optional)</label>
                             <div class="input-group">
@@ -655,6 +683,16 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
                             <label for="edit_address" class="form-label">Address <span class="text-danger">*</span></label>
                             <textarea class="form-control" id="edit_address" name="address" rows="3" required></textarea>
                         </div>
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="edit_num_trucks" class="form-label">Number of trucks</label>
+                                <input type="number" class="form-control" id="edit_num_trucks" name="num_trucks" min="0">
+                            </div>
+                            <div class="col-md-8 mb-3">
+                                <label for="edit_truck_equipment" class="form-label">Truck equipment / notes</label>
+                                <input type="text" class="form-control" id="edit_truck_equipment" name="truck_equipment">
+                            </div>
+                        </div>
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -692,9 +730,26 @@ $total_collections = $stmt->get_result()->fetch_assoc()['total_collections'];
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function editCollector(collectorId) {
-            // In a real application, you would fetch collector details via AJAX
-            document.getElementById('editCollectorId').value = collectorId;
-            new bootstrap.Modal(document.getElementById('editCollectorModal')).show();
+            // Fetch collector details and populate the edit modal
+            fetch('../../api/get_collector.php?id=' + encodeURIComponent(collectorId))
+                .then(r => r.json())
+                .then(data => {
+                    if (data && !data.error) {
+                        document.getElementById('editCollectorId').value = data.id;
+                        document.getElementById('edit_first_name').value = data.first_name || '';
+                        document.getElementById('edit_middle_name').value = data.middle_name || '';
+                        document.getElementById('edit_last_name').value = data.last_name || '';
+                        document.getElementById('edit_email').value = data.email || '';
+                        document.getElementById('edit_phone').value = data.phone || '';
+                        document.getElementById('edit_address').value = data.address || '';
+                        if (document.getElementById('edit_num_trucks')) document.getElementById('edit_num_trucks').value = data.num_trucks ?? 0;
+                        if (document.getElementById('edit_truck_equipment')) document.getElementById('edit_truck_equipment').value = data.truck_equipment || '';
+                        new bootstrap.Modal(document.getElementById('editCollectorModal')).show();
+                    } else {
+                        alert('Failed to load collector details.');
+                    }
+                })
+                .catch(() => alert('Failed to load collector details.'));
         }
 
         function deleteCollector(collectorId) {
